@@ -9,31 +9,50 @@ servir(async (req) => {
   const pedidoBase = await asegurarPedido(cliente, datos.pedido_id, perfil);
   const { data: pedido, error } = await cliente
     .from("pedidos")
-    .select("id, folio, cliente_alias, total, estado, creado_en, actualizado_en")
+    .select("id, folio, cliente_alias, total, estado, creado_en, actualizado_en, tipo_documento, folio_documento, orden_compra_ref, zona, parada, ruta_id")
     .eq("id", pedidoBase.id)
     .single();
   if (error) throw new Error(error.message);
-  const { data: lineas, error: errorLineas } = await cliente
+  const { data: lineasCrudas, error: errorLineas } = await cliente
     .from("pedido_lineas")
     .select("cantidad, precio_unitario, subtotal, producto_id")
     .eq("pedido_id", pedido.id);
   if (errorLineas) throw new Error(errorLineas.message);
+  const productoIds = [...new Set((lineasCrudas ?? []).map((l) => l.producto_id))];
+  const { data: productos } = productoIds.length
+    ? await cliente.from("productos").select("id, nombre, sku").in("id", productoIds)
+    : { data: [] as Array<{ id: string; nombre: string; sku: string }> };
+  const mapa = new Map((productos ?? []).map((p) => [p.id, p]));
+  const lineas = (lineasCrudas ?? []).map((l) => ({ ...l, producto: mapa.get(l.producto_id) ?? null }));
+
   const { data: cobro, error: errorCobro } = await cliente
     .from("cobros")
-    .select("id, importe, concepto, estado, vigencia_hasta, pagado_en, comprobante_clave")
+    .select("id, importe, concepto, estado, vigencia_hasta, pagado_en, comprobante_clave, abierto_en")
     .eq("pedido_id", pedido.id)
     .maybeSingle();
   if (errorCobro) throw new Error(errorCobro.message);
   const intento = cobro
     ? await cliente
       .from("intentos_pago")
-      .select("id, metodo, estado, num_ref, expira_en, pagado_en, pey_id")
+      .select("id, metodo, estado, num_ref, expira_en, pagado_en, pey_id, creado_en")
       .eq("cobro_id", cobro.id)
       .order("creado_en", { ascending: false })
       .limit(1)
       .maybeSingle()
     : { data: null, error: null };
   if (intento.error) throw new Error(intento.error.message);
+
+  let intentos_desde_apertura = 0;
+  if (cobro) {
+    const desde = cobro.abierto_en ?? cobro.vigencia_hasta;
+    const { count } = await cliente
+      .from("intentos_pago")
+      .select("id", { count: "exact", head: true })
+      .eq("cobro_id", cobro.id)
+      .gte("creado_en", desde);
+    intentos_desde_apertura = count ?? 0;
+  }
+
   const pago = cobro
     ? await cliente
       .from("pagos_confirmados")
@@ -46,7 +65,6 @@ servir(async (req) => {
   if (pago.error) throw new Error(pago.error.message);
   const expira = intento.data?.expira_en ? new Date(intento.data.expira_en).getTime() : 0;
   const segundos = expira ? Math.max(0, Math.floor((expira - Date.now()) / 1000)) : 0;
-  // El repartidor ve banco, últimos 4, monto y hora. No el tipo de cuenta.
   const pagoRepartidor = pago.data
     ? {
       monto: pago.data.monto,
@@ -58,10 +76,12 @@ servir(async (req) => {
     : null;
   return json(200, {
     pedido,
-    lineas: lineas ?? [],
+    lineas,
     cobro,
     intento: intento.data,
     segundos,
+    intentos_desde_apertura,
+    quedan_intentos: Math.max(0, 5 - intentos_desde_apertura),
     pago: pagoRepartidor,
     comprobante_clave: cobro?.comprobante_clave ?? null,
   });

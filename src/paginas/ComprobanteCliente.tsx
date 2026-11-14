@@ -13,6 +13,7 @@ type Comprobante = {
   num_ref: string | null;
   clave_rastreo: string | null;
   piezas: Array<{ nombre: string; cantidad: number; subtotal: number }>;
+  entrega: { fecha: string; recibe: string; leyenda: string } | null;
   aviso: string;
 };
 
@@ -91,6 +92,14 @@ export default function ComprobanteCliente() {
               ))}
             </ul>
           </div>
+          {datos.entrega && (
+            <div>
+              <p className="text-sm text-marino/70">Entrega</p>
+              <p className="text-lg">{fechaHora(datos.entrega.fecha)}</p>
+              <p className="text-lg">Recibió: {datos.entrega.recibe}</p>
+              <p className="text-sm text-marino/70">{datos.entrega.leyenda}</p>
+            </div>
+          )}
           <p className="rounded-2xl border border-linea bg-white px-4 py-3 text-sm" role="note">
             {datos.aviso}
           </p>

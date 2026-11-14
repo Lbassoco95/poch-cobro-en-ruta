@@ -2,14 +2,14 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom
 import { SesionProvider, useSesion } from "./contexto/Sesion";
 import Detalle from "./paginas/admin/Detalle";
 import Pagos from "./paginas/admin/Pagos";
+import Remisiones from "./paginas/admin/Remisiones";
 import Tablero from "./paginas/admin/Tablero";
 import ComprobanteCliente from "./paginas/ComprobanteCliente";
 import Ingreso from "./paginas/Ingreso";
-import Camioneta from "./paginas/repartidor/Camioneta";
-import Cobrar from "./paginas/repartidor/Cobrar";
-import NuevoPedido from "./paginas/repartidor/NuevoPedido";
-import Pagado from "./paginas/repartidor/Pagado";
-import Pedidos from "./paginas/repartidor/Pedidos";
+import Entrega from "./paginas/repartidor/Entrega";
+import Historial from "./paginas/repartidor/Historial";
+import MiRuta from "./paginas/repartidor/MiRuta";
+import Parada from "./paginas/repartidor/Parada";
 
 function RutaPrivada({ rol }: { rol: "repartidor" | "admin" }) {
   const { cargando, sesion } = useSesion();
@@ -27,14 +27,14 @@ export default function App() {
           <Route path="/" element={<Ingreso />} />
           <Route path="/c/:clave" element={<ComprobanteCliente />} />
           <Route element={<RutaPrivada rol="repartidor" />}>
-            <Route path="/repartidor" element={<Pedidos />} />
-            <Route path="/repartidor/nuevo" element={<NuevoPedido />} />
-            <Route path="/repartidor/cobrar/:pedidoId" element={<Cobrar />} />
-            <Route path="/repartidor/pagado/:pedidoId" element={<Pagado />} />
-            <Route path="/repartidor/camioneta" element={<Camioneta />} />
+            <Route path="/repartidor" element={<MiRuta />} />
+            <Route path="/repartidor/historial" element={<Historial />} />
+            <Route path="/repartidor/parada/:pedidoId" element={<Parada />} />
+            <Route path="/repartidor/entrega/:pedidoId" element={<Entrega />} />
           </Route>
           <Route element={<RutaPrivada rol="admin" />}>
             <Route path="/admin" element={<Tablero />} />
+            <Route path="/admin/remisiones" element={<Remisiones />} />
             <Route path="/admin/pedido/:pedidoId" element={<Detalle />} />
             <Route path="/admin/pagos" element={<Pagos />} />
           </Route>
