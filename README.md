@@ -1,6 +1,6 @@
 # Poch · cobro en ruta con CoDi
 
-**Poch** (por *Pochteca*, los comerciantes que recorrían rutas en Mesoamérica) convierte el celular de un repartidor en su terminal de cobro. El repartidor arma el pedido con piezas de su camioneta, el sistema genera un QR de CoDi, el cliente paga desde la app de su banco y el dinero va **directo de la cuenta del cliente a la cuenta de la empresa**. Cuando llega la confirmación, el stock de la camioneta baja y la empresa ve todo en tiempo real.
+**Poch** (por *Pochteca*, los comerciantes que recorrían rutas en Mesoamérica) convierte el celular de un repartidor en su terminal de cobro. Administración arma la ruta del día con remisiones. El repartidor recorre las paradas en orden, cobra el monto del documento con un QR de CoDi y confirma la entrega con foto y firma. El dinero va **directo de la cuenta del cliente a la cuenta de la empresa**. La empresa ve el avance, la evidencia y los cambios de orden.
 
 Proyecto del **Cursor Hackatón México (CDMX, 14–15 de noviembre de 2026)**, construido con la API de pey.
 
@@ -14,27 +14,38 @@ En refaccionarias con venta en ruta, el repartidor cobra en efectivo o pide una 
 
 ```mermaid
 sequenceDiagram
+  participant Admin as Administración
   participant R as Repartidor
   participant A as Poch (compuerta)
   participant B as Base
   participant P as pey / CoDi
   participant C as Cliente (banco)
 
-  R->>A: Nuevo pedido + generar cobro
-  A->>B: crear_pedido_con_cobro (aparta stock)
-  A->>B: crear_intento
+  Admin->>A: crear-ruta y cargar-documento
+  A->>B: paradas de la remisión
+  R->>A: mi-ruta
+  R->>A: abrir-cobro (6 min) y crear-intento-pago
   A->>P: POST /codi/qr (sin bankAccountId si la llave ya está ligada)
   P-->>A: id del QR, qrString, qrImage
-  A->>B: registrar id del QR en el intento
-  A-->>R: muestra QR
+  A-->>R: muestra QR (la imagen queda en la sesión del celular)
   C->>P: paga desde su banco
   Note over P: ~3 s hasta confirmar (medido)
   P->>A: webhook firmado (transactionId, codiQrId, numRef)
   A->>P: GET /transaction/{id} (PAID y monto)
   A->>B: conciliar_pago
-  B-->>A: aplicado + clave de comprobante
-  A-->>R: pantalla Pagado (sin recargar)
+  A-->>R: pantalla Pagado, sin recargar
+  R->>A: subir-evidencia y marcar-entregado
 ```
+
+## Pantallas
+
+El aspecto sale de `docs/diseno/poch-ruta.html`: fondo oscuro, vidrio y fondo vivo. De 640 px hacia abajo el repartidor usa la pantalla completa. Hacia arriba se ve dentro de un marco de teléfono. Administración usa todo el ancho.
+
+- Repartidor: ingreso, mi ruta, remisión, cobro con QR, estado, entrega con foto y firma, cambio de orden y historial.
+- Administración: tablero, rutas, pagos por resolver, bitácora e integridad, y guía de estilo (`/estilo`).
+- El cliente abre el comprobante en `/c/:clave`, sin iniciar sesión.
+
+El repartidor no arma pedidos. Si un documento de la ruta se cancela desde el celular, la función usada es `devolver-documento`.
 
 ## Reglas de conciliación
 
@@ -65,7 +76,7 @@ Resumen vivo en [`docs/PEY-VERIFICADO.md`](docs/PEY-VERIFICADO.md). Verificado c
 ## Instalación
 
 1. Cree un proyecto de Supabase (Postgres 16) y anote la URL y las llaves.
-2. En el editor SQL, corra **en este orden**: Bloque 1, Bloque 2, Bloque 2b (ajuste del pago real), cree los tres usuarios en Authentication, Bloque 3.
+2. En el editor SQL, corra **en este orden**: Bloque 1, Bloque 2, Bloque 2b (ajuste del pago real), cree los tres usuarios en Authentication, Bloque 3. Después aplique `supabase/migrations/20261114200000_ruta_entrega.sql` y `supabase/migrations/20261114210000_reorden_paradas_orden_compra.sql` si esa base todavía no las tiene. `npm test` las aplica en local.
 3. Usuarios de demostración (contraseña la define usted en el panel): `admin@demo.invalid`, `repartidor1@demo.invalid`, `repartidor2@demo.invalid`.
 4. Despliegue las Edge Functions de `supabase/functions/` y configure los secretos (nombres en `.env.example`).
 5. Registre en pey la URL pública de `webhook-pey`.
@@ -825,7 +836,7 @@ npm install
 npm run dev
 ```
 
-Sin las variables `VITE_*` la pantalla de ingreso lo indica. El comprobante público del cliente vive en `/c/:clave`.
+Sin las variables `VITE_*` la pantalla de ingreso lo indica. El comprobante público del cliente vive en `/c/:clave`. La guía de estilo, sin sesión, vive en `/estilo`.
 
 ## Siguiente fase (fuera de esta corrida)
 
@@ -838,8 +849,12 @@ Disputas con evidencia, devoluciones por API, pago con tarjeta o liga, carga de 
 - [`docs/cuaderno-de-datos.md`](docs/cuaderno-de-datos.md)
 - [`docs/GUION-DEMO.md`](docs/GUION-DEMO.md)
 - [`docs/PROMPT-CONSTRUCCION.md`](docs/PROMPT-CONSTRUCCION.md)
+- [`docs/RUTA-Y-ENTREGA.md`](docs/RUTA-Y-ENTREGA.md)
+- [`docs/diseno/poch-ruta.html`](docs/diseno/poch-ruta.html)
 - [`CLAUDE.md`](CLAUDE.md)
 
 ## Equipo y método
 
-Desarrollo de Yoltik con Git Flow simplificado: `main` solo con lo que funciona, `develop` para integrar y `feature/*` para cada pieza. Esta corrida vive en `feature/construccion` con pull request hacia `develop`.
+Desarrollo de Yoltik con Git Flow simplificado: `main` solo con lo que funciona, `develop` para integrar y `feature/*` para cada pieza. El front de la ruta parte de `feature/ruta-entrega`, porque `develop` todavía no tiene esas migraciones ni funciones.
+
+Una parada con cobro en curso se puede mover. La regla está en `src/lib/parada.ts` (`MOVER_PARADA_CON_COBRO_EN_CURSO`). Polo decide si queda fija. El aviso al administrador por correo o mensaje, al cambiar el orden, queda fuera de esta entrega.

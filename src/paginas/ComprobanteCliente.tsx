@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { Aviso } from "../componentes/Aviso";
 import { Pie } from "../componentes/Pie";
+import { Vidrio } from "../componentes/Vidrio";
 import { fechaHora, pesos } from "../lib/formato";
 
 type Comprobante = {
@@ -26,7 +28,7 @@ export default function ComprobanteCliente() {
     const url = import.meta.env.VITE_SUPABASE_URL;
     const llave = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     if (!url || !llave) {
-      setError("Faltan VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY para abrir el comprobante.");
+      setError("Faltan las variables de acceso para abrir el comprobante.");
       return;
     }
     fetch(`${url}/functions/v1/comprobante`, {
@@ -47,67 +49,49 @@ export default function ComprobanteCliente() {
   }, [clave]);
 
   return (
-    <main className="mx-auto min-h-screen max-w-lg bg-gradient-to-b from-papel to-white px-4 py-10 text-marino">
-      <p className="text-sm font-semibold tracking-wide text-jade">Poch</p>
-      <h1 className="mt-2 text-3xl font-semibold">Comprobante de pago</h1>
-      <p className="mt-2 text-marino/80">Información del cobro. No incluye datos del pagador ni del repartidor.</p>
-      {error && <p role="alert" className="mt-6 rounded-2xl bg-ambar-fondo px-4 py-3 text-ambar">{error}</p>}
-      {datos && (
-        <section className="mt-8 space-y-5">
-          <div>
-            <p className="text-sm text-marino/70">Empresa que cobró</p>
-            <p className="text-xl font-semibold">{datos.empresa}</p>
-          </div>
-          <div>
-            <p className="text-sm text-marino/70">Cuenta destino</p>
-            <p className="text-lg">····{datos.cuenta_destino_ultimos4 ?? "----"}</p>
-          </div>
-          <div>
-            <p className="text-sm text-marino/70">Folio</p>
-            <p className="text-2xl font-semibold">{datos.folio ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-sm text-marino/70">Monto</p>
-            <p className="text-3xl font-semibold text-jade">{pesos(datos.monto)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-marino/70">Fecha y hora</p>
-            <p className="text-lg">{fechaHora(datos.fecha)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-marino/70">Número de referencia</p>
-            <p className="text-lg">{datos.num_ref ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-sm text-marino/70">Clave de rastreo</p>
-            <p className="break-all text-lg">{datos.clave_rastreo ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-sm text-marino/70">Piezas</p>
-            <ul className="mt-2 space-y-1">
+    <div className="stage">
+      <main className="ingreso">
+        <p className="muted">Poch</p>
+        <h1>Comprobante de pago</h1>
+        <p className="muted">Información del cobro. No incluye datos del pagador ni del repartidor.</p>
+        <Aviso texto={error} />
+        {datos ? (
+          <Vidrio>
+            <p className="muted">Empresa que cobró</p>
+            <p>{datos.empresa}</p>
+            <p className="muted margen-top">Cuenta destino</p>
+            <p>····{datos.cuenta_destino_ultimos4 ?? "----"}</p>
+            <p className="muted margen-top">Folio</p>
+            <p className="monto" style={{ fontSize: 28 }}>{datos.folio ?? "—"}</p>
+            <p className="muted margen-top">Monto</p>
+            <p className="monto" style={{ fontSize: 34 }}>{pesos(datos.monto)}</p>
+            <p className="muted margen-top">Fecha y hora</p>
+            <p>{fechaHora(datos.fecha)}</p>
+            <p className="muted margen-top">Número de referencia</p>
+            <p>{datos.num_ref ?? "—"}</p>
+            <p className="muted margen-top">Clave de rastreo</p>
+            <p className="nombre">{datos.clave_rastreo ?? "—"}</p>
+            <p className="muted margen-top">Concepto</p>
+            <p>{datos.concepto}</p>
+            <p className="muted margen-top">Piezas</p>
+            <ul>
               {datos.piezas.map((pieza, indice) => (
-                <li key={`${pieza.nombre}-${indice}`}>
-                  {pieza.cantidad} × {pieza.nombre} · {pesos(pieza.subtotal)}
-                </li>
+                <li key={`${pieza.nombre}-${indice}`}>{pieza.cantidad} × {pieza.nombre} · {pesos(pieza.subtotal)}</li>
               ))}
             </ul>
-          </div>
-          {datos.entrega && (
-            <div>
-              <p className="text-sm text-marino/70">Entrega</p>
-              <p className="text-lg">{fechaHora(datos.entrega.fecha)}</p>
-              <p className="text-lg">Recibió: {datos.entrega.recibe}</p>
-              <p className="text-sm text-marino/70">{datos.entrega.leyenda}</p>
-            </div>
-          )}
-          <p className="rounded-2xl border border-linea bg-white px-4 py-3 text-sm" role="note">
-            {datos.aviso}
-          </p>
-        </section>
-      )}
-      <div className="mt-10">
+            {datos.entrega ? (
+              <>
+                <p className="muted margen-top">Entrega</p>
+                <p>{fechaHora(datos.entrega.fecha)}</p>
+                <p>Recibió: {datos.entrega.recibe}</p>
+                <p className="muted">{datos.entrega.leyenda}</p>
+              </>
+            ) : null}
+            <Aviso tono="info">{datos.aviso}</Aviso>
+          </Vidrio>
+        ) : null}
         <Pie />
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

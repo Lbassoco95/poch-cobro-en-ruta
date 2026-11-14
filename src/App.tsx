@@ -1,19 +1,31 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { FondoVivo } from "./componentes/FondoVivo";
 import { SesionProvider, useSesion } from "./contexto/Sesion";
 import Detalle from "./paginas/admin/Detalle";
+import Estilo from "./paginas/admin/Estilo";
+import Integridad from "./paginas/admin/Integridad";
 import Pagos from "./paginas/admin/Pagos";
-import Remisiones from "./paginas/admin/Remisiones";
+import RutasAdmin from "./paginas/admin/Rutas";
 import Tablero from "./paginas/admin/Tablero";
 import ComprobanteCliente from "./paginas/ComprobanteCliente";
 import Ingreso from "./paginas/Ingreso";
+import Cobrar from "./paginas/repartidor/Cobrar";
 import Entrega from "./paginas/repartidor/Entrega";
+import EstadoCobro from "./paginas/repartidor/EstadoCobro";
 import Historial from "./paginas/repartidor/Historial";
 import MiRuta from "./paginas/repartidor/MiRuta";
-import Parada from "./paginas/repartidor/Parada";
+import Orden from "./paginas/repartidor/Orden";
+import Remision from "./paginas/repartidor/Remision";
 
 function RutaPrivada({ rol }: { rol: "repartidor" | "admin" }) {
   const { cargando, sesion } = useSesion();
-  if (cargando) return <p className="p-6 text-lg">Cargando…</p>;
+  if (cargando) {
+    return (
+      <div className="stage">
+        <p className="pad" role="status">Cargando…</p>
+      </div>
+    );
+  }
   if (!sesion) return <Navigate to="/" replace />;
   if (sesion.rol !== rol) return <Navigate to={sesion.rol === "admin" ? "/admin" : "/repartidor"} replace />;
   return <Outlet />;
@@ -22,21 +34,29 @@ function RutaPrivada({ rol }: { rol: "repartidor" | "admin" }) {
 export default function App() {
   return (
     <SesionProvider>
+      <FondoVivo />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Ingreso />} />
           <Route path="/c/:clave" element={<ComprobanteCliente />} />
+          <Route path="/estilo" element={<Estilo publico />} />
           <Route element={<RutaPrivada rol="repartidor" />}>
             <Route path="/repartidor" element={<MiRuta />} />
             <Route path="/repartidor/historial" element={<Historial />} />
-            <Route path="/repartidor/parada/:pedidoId" element={<Parada />} />
+            <Route path="/repartidor/orden" element={<Orden />} />
+            <Route path="/repartidor/parada/:pedidoId" element={<Remision />} />
+            <Route path="/repartidor/cobrar/:pedidoId" element={<Cobrar />} />
+            <Route path="/repartidor/estado/:pedidoId" element={<EstadoCobro />} />
             <Route path="/repartidor/entrega/:pedidoId" element={<Entrega />} />
           </Route>
           <Route element={<RutaPrivada rol="admin" />}>
             <Route path="/admin" element={<Tablero />} />
-            <Route path="/admin/remisiones" element={<Remisiones />} />
-            <Route path="/admin/pedido/:pedidoId" element={<Detalle />} />
+            <Route path="/admin/rutas" element={<RutasAdmin />} />
+            <Route path="/admin/remisiones" element={<Navigate to="/admin/rutas" replace />} />
             <Route path="/admin/pagos" element={<Pagos />} />
+            <Route path="/admin/bitacora" element={<Integridad />} />
+            <Route path="/admin/estilo" element={<Estilo />} />
+            <Route path="/admin/pedido/:pedidoId" element={<Detalle />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
