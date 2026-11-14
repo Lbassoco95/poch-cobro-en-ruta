@@ -1,0 +1,88 @@
+# Proyecto local de demostración. No apunta a un proyecto de Supabase en la nube.
+project_id = "poch-local"
+
+[api]
+enabled = true
+port = 54321
+
+[db]
+port = 54322
+major_version = 16
+
+[functions.webhook-pey]
+verify_jwt = false
+
+[functions.comprobante]
+verify_jwt = false
+
+[functions.quien-soy]
+verify_jwt = true
+
+[functions.catalogo]
+verify_jwt = true
+
+[functions.mis-pedidos]
+verify_jwt = true
+
+[functions.crear-pedido]
+verify_jwt = true
+
+[functions.crear-intento-pago]
+verify_jwt = true
+
+[functions.estado-pedido]
+verify_jwt = true
+
+[functions.marcar-entregado]
+verify_jwt = true
+
+[functions.cancelar-pedido]
+verify_jwt = true
+
+[functions.mi-camioneta]
+verify_jwt = true
+
+[functions.tablero]
+verify_jwt = true
+
+[functions.conciliar-con-pey]
+verify_jwt = true
+
+[functions.resolver-pago]
+verify_jwt = true
+
+[functions.verificar-integridad]
+verify_jwt = true
+
+[functions.mi-ruta]
+verify_jwt = true
+
+[functions.mi-historial]
+verify_jwt = true
+
+[functions.crear-ruta]
+verify_jwt = true
+
+[functions.cargar-documento]
+verify_jwt = true
+
+[functions.abrir-cobro]
+verify_jwt = true
+
+[functions.reordenar-paradas]
+verify_jwt = true
+
+[functions.subir-evidencia]
+verify_jwt = true
+
+[functions.revisar-entrega]
+verify_jwt = true
+
+[functions.devolver-documento]
+verify_jwt = true
+
+[functions.cerrar-ruta]
+verify_jwt = true
+
+[functions.evidencia-url]
+verify_jwt = true

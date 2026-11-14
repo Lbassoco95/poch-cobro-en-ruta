@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Poch · Maqueta de ruta de entrega y cobro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Negros — tonatiuh-suite (void) */
+  --void:#05070D; --void-2:#0D1018;
+  /* Azules — ixim-pay (midnight) y kit-to-drive (primary/secondary) */
+  --midnight:#0A0F2E; --azul-prof:#1F3A65; --azul-kit:#2E78B8; --azul:#2563EB; --azul-2:#1D4ED8; --azul-claro:#8FB4FF; --azul-hielo:#CFE0FF;
+  /* Rojos — ixim-pay (error) y kit-to-drive (destructive) */
+  --rojo:#FF4D55; --rojo-btn:#D61F3A; --rosa:#FF4F9A; --rosa-2:#E11D74; --aqua:#5EEAD4; --aqua-t:#04232A; --rojo-prof:#C00000;
+  --txt:#F4F7FF; --txt2:#A9B6D3; --linea:rgba(255,255,255,.16); --linea-f:rgba(255,255,255,.45);
+  --vidrio:rgba(14,20,42,.66); --vidrio-2:rgba(255,255,255,.07); --blur:blur(22px) saturate(165%);
+  --e1:4px; --e2:8px; --e3:12px; --e4:16px; --e5:24px; --e6:32px;
+  --radio:18px; --toque:56px;
+  --f:'Sora','Arial',sans-serif; --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--f);color:var(--txt);font-size:17px;line-height:1.45;min-height:100vh;background:var(--void)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--azul-claro);outline-offset:2px}
+.glass,.card,.panel,.side,.kpi,.qrwrap,.modal,.tabs,.app-h,.chk{background:var(--vidrio);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--linea);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 10px 30px rgba(0,0,0,.35)}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.glass,.card,.panel,.side,.kpi,.modal,.tabs,.app-h,.chk{background:#0D1224}}
+.topbar{background:rgba(5,7,13,.8);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-bottom:1px solid var(--linea);color:#fff;display:flex;gap:var(--e3);align-items:center;padding:var(--e3) var(--e5);flex-wrap:wrap;position:sticky;top:0;z-index:20}
+.topbar .logo{font-weight:800;font-size:22px;letter-spacing:-.04em;margin-right:var(--e4)}
+.topbar .logo small{font-weight:500;font-size:12px;color:var(--txt2);letter-spacing:0;margin-left:8px}
+.seg{display:flex;gap:6px;background:rgba(255,255,255,.08);padding:5px;border-radius:14px;border:1px solid var(--linea)}
+.seg button{background:transparent;border:0;color:var(--txt2);padding:10px 16px;border-radius:10px;font-weight:600}
+.seg button[aria-pressed=true]{background:#fff;color:var(--void)}
+.sim{margin-left:auto;display:flex;gap:8px;align-items:center;font-size:13px;color:var(--txt2);flex-wrap:wrap}
+.sim button{background:rgba(255,255,255,.08);border:1px solid var(--linea-f);color:#fff;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600}
+.stage{padding:var(--e5);display:flex;justify-content:center;position:relative;z-index:1}
+.phone{width:390px;min-height:780px;max-height:calc(100vh - 110px);border-radius:38px;border:9px solid #000;outline:1px solid rgba(255,255,255,.25);box-shadow:0 0 0 1px rgba(255,255,255,.08),0 30px 70px rgba(0,0,0,.6),0 0 90px rgba(255,79,154,.22);display:flex;flex-direction:column;overflow:hidden;background:rgba(5,7,13,.34)}
+.phone .scroll{flex:1;overflow:auto;background:transparent}
+@media(max-width:560px){.stage{padding:0}.phone{width:100%;border:0;border-radius:0;max-height:none;min-height:calc(100vh - 120px)}}
+.app-h{border-width:0 0 1px 0;border-radius:0;padding:var(--e4);display:flex;align-items:center;gap:var(--e3)}
+.app-h h1{font-size:20px;margin:0;font-weight:700;letter-spacing:-.02em;flex:1}
+.app-h .quien{font-size:13px;color:var(--txt2)}
+.back{background:rgba(255,255,255,.12);border:1px solid var(--linea);color:#fff;border-radius:12px;min-width:44px;height:44px;font-size:22px}
+.pad{padding:var(--e4)}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);border-width:1px 0 0 0;border-radius:0}
+.tabs button{background:none;border:0;padding:10px 4px 12px;min-height:64px;font-weight:600;font-size:13px;color:var(--txt2);display:flex;flex-direction:column;align-items:center;gap:2px}
+.tabs button .i{font-size:22px;line-height:1}
+.tabs button[aria-current=page]{color:#fff;box-shadow:inset 0 3px 0 var(--rosa);background:rgba(37,99,235,.22)}
+.pie{font-size:12px;color:var(--txt2);text-align:center;padding:var(--e3) var(--e4) var(--e4)}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:var(--toque);padding:14px 20px;border-radius:var(--radio);border:2px solid rgba(255,255,255,.35);background:linear-gradient(180deg,#3B7BFF,var(--azul-2));color:#fff;font-weight:700;font-size:18px;box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 8px 22px rgba(37,99,235,.45)}
+.btn.sec{background:rgba(255,255,255,.08);border-color:var(--linea-f);box-shadow:none;color:#fff;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.btn.ambar{background:#fff;border-color:#fff;color:var(--void);box-shadow:0 0 0 4px rgba(143,180,255,.35),0 8px 22px rgba(0,0,0,.4)}
+.btn.peligro{background:rgba(255,77,85,.12);border-color:var(--rojo);color:#FF8FA3;box-shadow:none}
+.btn.chico{width:auto;min-height:44px;padding:8px 16px;font-size:15px}
+.btn[disabled]{background:rgba(255,255,255,.06);border:2px dashed rgba(255,255,255,.28);color:#8190B0;cursor:not-allowed;box-shadow:none}
+.card{border-radius:var(--radio);padding:var(--e4);margin-bottom:var(--e3)}
+button.card{color:var(--txt)}
+.card.hero,.kpi.hero{background:linear-gradient(135deg,rgba(37,99,235,.78),rgba(150,40,130,.62));border-color:rgba(255,255,255,.38);position:relative;overflow:hidden}
+.card.hero::after,.kpi.hero::after{content:'';position:absolute;inset:0;background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.28) 50%,transparent 65%);transform:translateX(-120%);animation:brillo 7s ease-in-out infinite;pointer-events:none}
+.fila{display:flex;justify-content:space-between;align-items:center;gap:var(--e3)}
+.muted{color:var(--txt2);font-size:14px}
+.monto{font-family:var(--mono);font-weight:700;letter-spacing:-.04em}
+h2{font-size:20px;margin:0 0 var(--e3);letter-spacing:-.02em}
+h3{font-size:16px;margin:0 0 var(--e2)}
+.ins{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:14px;padding:5px 11px;border-radius:999px;border:2px solid;white-space:nowrap}
+.ins.pendiente{background:rgba(143,180,255,.14);border:2px dashed var(--azul-claro);color:var(--azul-hielo)}
+.ins.pagado{background:var(--aqua);border:2px solid #fff;color:var(--aqua-t);box-shadow:0 0 16px rgba(94,234,212,.65)}
+.ins.vencido{background:rgba(255,255,255,.06);border:2px dotted #B9C4DE;color:#D5DCEE}
+.ins.cancelado{background:rgba(255,77,85,.14);border:2px solid var(--rojo);color:#FF9DB0;text-decoration:line-through}
+.ins.entregado{background:#fff;border:2px solid #fff;color:var(--void)}
+.ins.ok{background:var(--aqua);border:2px solid #fff;color:var(--aqua-t)}
+.ins.falla{background:rgba(255,77,85,.16);border:3px double var(--rojo);color:#FF9DB0}
+.ins.aviso{background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.55);color:#fff}
+.cant{display:flex;align-items:center;gap:6px}
+.cant button{width:52px;height:52px;border-radius:14px;border:2px solid var(--azul-claro);background:rgba(37,99,235,.2);color:#fff;font-size:28px;font-weight:700;line-height:1}
+.cant button[disabled]{border:2px dashed rgba(255,255,255,.25);background:transparent;color:#6B7A9C;cursor:not-allowed}
+.cant output{min-width:36px;text-align:center;font-family:var(--mono);font-weight:700;font-size:22px}
+.disp{display:inline-block;font-size:13px;font-weight:700;background:rgba(255,255,255,.1);border:1.5px solid var(--linea-f);border-radius:8px;padding:2px 8px;font-family:var(--mono)}
+.disp.cero{border-style:dashed;color:#FF9DB0;border-color:var(--rojo)}
+input[type=text],input[type=tel],textarea,select{width:100%;min-height:var(--toque);border:2px solid var(--linea-f);border-radius:14px;padding:10px 14px;background:rgba(255,255,255,.08);color:#fff;font-size:18px}
+input::placeholder,textarea::placeholder{color:#8190B0}
+textarea{min-height:90px;font-size:16px}
+label{display:block;font-weight:700;margin-bottom:6px}
+.aviso-box{border-radius:14px;padding:var(--e3) var(--e4);font-size:15px;font-weight:500;display:flex;gap:10px;margin:var(--e3) 0;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.aviso-box.ambar{background:rgba(255,77,85,.14);border:2px solid var(--rojo)}
+.aviso-box.info{background:rgba(143,180,255,.12);border:2px solid var(--azul-claro)}
+.aviso-box.ok{background:rgba(94,234,212,.16);border:2px solid var(--aqua)}
+.aviso-box.mal{background:rgba(255,77,85,.14);border:2px solid var(--rojo)}
+.aviso-box .ic{font-size:22px;line-height:1.1}
+.stk{width:100%;border-collapse:collapse;font-size:15px}
+.stk th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--txt2);text-align:right;padding:6px}
+.stk th:first-child,.stk td:first-child{text-align:left}
+.stk td{padding:12px 6px;border-top:1px solid var(--linea);text-align:right;font-weight:700;font-family:var(--mono)}
+.stk td:first-child{font-weight:600;font-family:var(--f)}
+.stk td small{display:block;color:var(--txt2);font-weight:500;font-size:12px}
+.qrbox{background:#fff;border:3px solid #fff;border-radius:22px;padding:14px;margin:0 auto;width:min(100%,320px);box-shadow:0 0 0 6px rgba(143,180,255,.25),0 0 60px rgba(37,99,235,.55)}
+.qrbox svg{width:100%;height:auto;display:block}
+.cuenta{font-family:var(--mono);font-size:46px;font-weight:700;letter-spacing:-.05em;text-align:center;font-variant-numeric:tabular-nums}
+.cuenta.poco{color:var(--rojo)}
+.barra{height:14px;border-radius:99px;background:rgba(255,255,255,.12);border:1.5px solid var(--linea-f);overflow:hidden}
+.barra i{display:block;height:100%;background:linear-gradient(90deg,var(--azul),var(--azul-claro))}
+.barra.poco i{background:repeating-linear-gradient(45deg,var(--rojo),var(--rojo) 6px,#c0213f 6px,#c0213f 12px)}
+.grande{text-align:center;padding:var(--e5) var(--e4)}
+.grande .icono{font-size:64px;line-height:1}
+.grande h2{font-size:26px}
+.velo{position:fixed;inset:0;background:rgba(2,4,10,.7);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+.modal{border-radius:22px;padding:var(--e5);width:min(520px,100%);max-height:90vh;overflow:auto;background:rgba(14,20,42,.9);border:1px solid var(--linea-f)}
+.admin{display:grid;grid-template-columns:230px 1fr;gap:var(--e5);width:min(1280px,100%)}
+.side{border-radius:var(--radio);padding:var(--e3);align-self:start;position:sticky;top:90px}
+.side button{display:flex;width:100%;justify-content:space-between;align-items:center;background:none;border:0;color:var(--txt2);padding:14px;border-radius:12px;font-weight:600;text-align:left;font-size:16px}
+.side button[aria-current=page]{background:rgba(37,99,235,.35);color:#fff;box-shadow:inset 3px 0 0 var(--rosa)}
+.side .n{background:var(--rojo);color:var(--void);border-radius:99px;padding:0 9px;font-size:13px;font-weight:800;font-family:var(--mono)}
+.panel{border-radius:var(--radio);padding:var(--e5);min-width:0}
+.panel>h1{margin:0 0 4px;font-size:26px;letter-spacing:-.03em}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--e3);margin:var(--e4) 0}
+.kpi{border-radius:var(--radio);padding:var(--e4)}
+.kpi .v{font-family:var(--mono);font-size:32px;font-weight:700;letter-spacing:-.05em}
+.kpi .l{font-size:14px;font-weight:600;color:var(--txt2)}
+.kpi.hero .l{color:var(--azul-hielo)}
+table.t{width:100%;border-collapse:collapse;font-size:15px}
+table.t th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--txt2);padding:10px;border-bottom:2px solid var(--linea-f)}
+table.t td{padding:12px 10px;border-bottom:1px solid var(--linea);vertical-align:middle}
+table.t td.r,table.t th.r{text-align:right;font-family:var(--mono)}
+.tw{overflow:auto}
+.mini{height:12px;background:rgba(255,255,255,.12);border:1.5px solid var(--linea-f);border-radius:99px;min-width:90px;overflow:hidden}
+.mini i{display:block;height:100%;background:linear-gradient(90deg,var(--azul),var(--azul-claro))}
+.hash{font-family:var(--mono);font-size:12px;color:var(--txt2)}
+.dos{display:grid;grid-template-columns:1fr 1fr;gap:var(--e4)}
+.chk{display:flex;justify-content:space-between;align-items:center;gap:12px;border-radius:14px;padding:14px 16px;margin-bottom:10px}
+.sw{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--e3)}
+.sw div{border-radius:14px;padding:14px;min-height:96px;font-size:13px;font-weight:600;border:1px solid var(--linea-f)}
+@media(max-width:900px){.admin{grid-template-columns:1fr}.side{position:static;display:flex;overflow:auto}.side button{white-space:nowrap}.kpis{grid-template-columns:1fr 1fr}.dos{grid-template-columns:1fr}.stage{padding:var(--e3)}}
+.estilo{width:min(1100px,100%)}
+.estilo .panel{margin-bottom:var(--e4)}
+code.k{background:rgba(255,255,255,.1);border:1px solid var(--linea);border-radius:6px;padding:1px 6px;font-size:13px;font-family:var(--mono)}
+
+/* Fondo vivo: manchas que se mueven y respiran (el rojo-rosa sube y baja de intensidad) */
+.vivo{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+.vivo i{position:absolute;border-radius:50%;will-change:transform,opacity}
+.vivo .b1{width:900px;height:900px;left:-12%;top:-18%;background:radial-gradient(circle,rgba(37,99,235,.62),transparent 62%);animation:deriva1 26s ease-in-out infinite alternate,respira 11s ease-in-out infinite}
+.vivo .b2{width:820px;height:820px;right:-8%;top:8%;background:radial-gradient(circle,rgba(255,61,127,.78),rgba(225,29,116,.32) 45%,transparent 66%);animation:sube-baja 13s ease-in-out infinite,pulso 7s ease-in-out infinite}
+.vivo .b3{width:900px;height:900px;left:28%;bottom:-38%;background:radial-gradient(circle,rgba(30,64,175,.62),transparent 62%);animation:deriva2 32s ease-in-out infinite alternate,respira 15s ease-in-out -4s infinite}
+.vivo .b4{width:560px;height:560px;left:-6%;bottom:-8%;background:radial-gradient(circle,rgba(255,79,154,.5),transparent 64%);animation:sube-baja 17s ease-in-out -6s infinite,pulso 9s ease-in-out -3s infinite}
+@keyframes deriva1{from{transform:translate(0,0)}to{transform:translate(18vw,14vh)}}
+@keyframes deriva2{from{transform:translate(0,0)}to{transform:translate(-22vw,-10vh)}}
+@keyframes sube-baja{0%,100%{transform:translate(0,12vh) scale(1)}50%{transform:translate(-8vw,-14vh) scale(1.12)}}
+@keyframes pulso{0%,100%{opacity:.28}50%{opacity:1}}
+@keyframes respira{0%,100%{opacity:.6}50%{opacity:1}}
+@keyframes brillo{0%,55%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+@media(prefers-reduced-motion:reduce){.vivo i,.card.hero::after,.kpi.hero::after{animation:none}.vivo .b2{opacity:.7}}
+
+/* ===== Responsivo: web primero, celular completo ===== */
+html,body{overflow-x:hidden;max-width:100%}
+.seg button .c{display:none}
+.phone{height:min(860px,calc(100vh - var(--tb,120px) - 56px));height:min(860px,calc(100dvh - var(--tb,120px) - 56px));min-height:0;max-height:none}
+.phone .scroll{min-height:0;overscroll-behavior:contain}
+.tabs{padding-bottom:env(safe-area-inset-bottom)}
+.pie{padding-bottom:calc(var(--e4) + env(safe-area-inset-bottom))}
+.pips{display:flex;gap:7px;align-items:center}
+.pips i{width:14px;height:14px;border-radius:50%;border:2px solid var(--linea-f);display:block}
+.pips i.u{background:#8190B0;border-color:#8190B0}
+.pips i.a{width:18px;height:18px;background:var(--azul);border:2px solid #fff;box-shadow:0 0 10px var(--azul)}
+.pips i.v{border-style:dashed}
+@media(max-width:640px){
+ body{font-size:16px}
+ .topbar{padding:8px 10px;gap:8px;flex-wrap:wrap}
+ .topbar .logo{font-size:19px;margin-right:2px}
+ .topbar .logo small{display:none}
+ .seg{flex:1;min-width:0;padding:3px}
+ .seg button{flex:1;padding:9px 4px;font-size:14px;min-width:0}
+ .seg button .l{display:none}.seg button .c{display:inline}
+ .sim{margin-left:0;width:100%;font-size:12px;gap:6px;flex-wrap:nowrap;overflow-x:auto}
+ .sim button{padding:6px 10px;font-size:12px;white-space:nowrap}
+ .stage{padding:0}
+ .phone{width:100%;border:0;border-radius:0;outline:0;box-shadow:none;height:calc(100vh - var(--tb,100px));height:calc(100dvh - var(--tb,100px));min-height:0}
+ .admin{padding:10px;gap:var(--e3)}
+ .panel{padding:var(--e4)}
+ .panel>h1{font-size:22px}
+ .estilo{padding:10px}
+ .kpi .v{font-size:24px}
+ .side button{padding:12px 14px;font-size:15px}
+}
+.firma{width:100%;height:170px;background:#fff;border-radius:14px;border:2px solid var(--linea-f);touch-action:none;display:block;cursor:crosshair}
+img.ev{width:100%;max-height:230px;object-fit:cover;border-radius:14px;border:2px solid var(--linea-f);display:block}
+.vacio{height:110px;border:2px dashed var(--linea-f);border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--txt2)}
+label.btn{cursor:pointer}
+.pz{padding:14px}
+.pz-n{font-weight:700;font-size:17px;line-height:1.25;min-width:0;overflow-wrap:anywhere}
+.pz-p{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--txt2);white-space:nowrap}
+.pz-g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.pz-g>div{background:rgba(255,255,255,.07);border:1px solid var(--linea);border-radius:12px;padding:8px 6px;text-align:center;min-width:0}
+.pz-g span{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--txt2)}
+.pz-g b{display:block;font-family:var(--mono);font-size:24px;font-weight:700;line-height:1.2}
+.pz-g .disp-c{background:rgba(37,99,235,.28);border:2px solid var(--azul-claro)}
+.pz-g .disp-c.cero{background:rgba(255,77,85,.14);border:2px dashed var(--rojo)}
+.pz-g .disp-c em{display:block;font-style:normal;font-size:11px;font-weight:700;color:#FF9AA0}
+.card{max-width:100%;min-width:0}
+.tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ins.porcobrar{background:rgba(255,255,255,.08);border:2px solid #B9C4DE;color:#E6ECFA}
+.parada.hecha{opacity:.72}
+.parada.sig{border:2px solid var(--azul-claro);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 0 0 4px rgba(143,180,255,.18),0 10px 30px rgba(0,0,0,.35)}
+.num{width:42px;height:42px;flex:none;border-radius:50%;border:2px solid var(--linea-f);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:18px}
+.num.ya{background:var(--azul);border-color:#fff;box-shadow:0 0 14px rgba(37,99,235,.7)}
+.num.ok{background:var(--aqua);border-color:#fff;color:var(--aqua-t)}
+.num.mal{border:2px solid var(--rojo);color:#FF9AA0}
+.chip{min-height:44px;padding:8px 18px;border-radius:999px;border:2px solid var(--linea-f);background:rgba(255,255,255,.08);color:#fff;font-weight:700;font-size:15px}
+.chip[aria-pressed=true]{background:#fff;color:var(--void);border-color:#fff}
+table.t td:first-child b{white-space:nowrap}
+.mov{display:flex;flex-direction:column;gap:8px;flex:none}
+.mov button{width:56px;height:52px;border-radius:14px;border:2px solid var(--azul-claro);background:rgba(37,99,235,.25);color:#fff;font-size:22px;font-weight:700}
+.mov button[disabled]{border:2px dashed rgba(255,255,255,.25);background:transparent;color:#6B7A9C;cursor:not-allowed}
+.movida{animation:movida 1.3s ease-out}
+@keyframes movida{0%{box-shadow:0 0 0 0 rgba(255,79,154,.95)}100%{box-shadow:0 0 0 16px rgba(255,79,154,0)}}
+.bloq{opacity:.62}
+@media(prefers-reduced-motion:reduce){.movida{animation:none}}
+</style>
+</head>
+<body>
+<div class="vivo" aria-hidden="true"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i></div>
+<div class="topbar">
+  <div class="logo">Poch<small>maqueta oscura · datos ficticios</small></div>
+  <div class="seg" role="group" aria-label="Vista">
+    <button data-act="vista" data-v="rep"><span class="l">Repartidor (celular)</span><span class="c">Repartidor</span></button>
+    <button data-act="vista" data-v="admin"><span class="l">Administrador (computadora)</span><span class="c">Administración</span></button>
+    <button data-act="vista" data-v="estilo"><span class="l">Guía de estilo</span><span class="c">Estilo</span></button>
+  </div>
+  <div class="sim" id="sim"></div>
+</div>
+<div class="stage" id="app"></div>
+<div id="modal"></div>
+
+<script>
+const $ = (s,r=document)=>r.querySelector(s);
+const peso = n => n.toLocaleString('es-MX',{style:'currency',currency:'MXN'});
+function cyrb(str){let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<str.length;i++){const c=str.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}
+ h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+ return (h2>>>0).toString(16).padStart(8,'0')+(h1>>>0).toString(16).padStart(8,'0')}
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ===== Datos inventados ===== */
+const PROD = [
+ {id:'BAL',nombre:'Balata delantera (juego)',precio:0.03},
+ {id:'CAD',nombre:'Cadena de transmisión 428',precio:0.05},
+ {id:'BUJ',nombre:'Bujía estándar',precio:0.01},
+ {id:'FIL',nombre:'Filtro de aceite',precio:0.02},
+ {id:'CLU',nombre:'Cable de clutch',precio:0.02},
+ {id:'FOC',nombre:'Foco delantero LED',precio:0.04},
+];
+const REPS = {r1:{nombre:'Repartidor Uno'},r2:{nombre:'Repartidor Dos'}};
+const YO='r1';
+const mk=(folio,rep,parada,oc,zona,alias,lin,estado,cobro,hora,intento,extra={})=>({folio,rep,fecha:'Hoy',parada,oc,zona,alias,lin,estado,cobro,hora,intento,...extra});
+const old=(folio,fecha,alias,lin,estado,cobro,hora)=>({folio,rep:'r1',fecha,parada:0,oc:'OC-0'+(folio-800),zona:'Col. Centro',alias,lin,estado,cobro,hora,intento:1,ev:estado==='entregado'?{demo:true}:undefined});
+const S = {
+ vista:'rep', rpant:'ruta', apant:'tablero', hfil:'hoy',
+ pedidos:[
+  mk(1040,'r1',1,'OC-0224','Col. Centro','Taller El Güero',{BUJ:2},'entregado','pagado','08:42',1,{ev:{demo:true}}),
+  mk(1042,'r1',2,'OC-0226','Col. Obrera','Mecánico Don Chuy',{FOC:1},'cancelado','vencido','10:05',5),
+  mk(1043,'r1',3,'OC-0227','Col. Doctores','Taller Los Primos',{BAL:1,FIL:2},'pagado','pagado','11:20',1),
+  mk(1045,'r1',4,'OC-0229','Col. Roma Sur','Mecánico Rafa',{CAD:1,CLU:1},'por_cobrar','pendiente','12:10',2,{seg:312}),
+  mk(1047,'r1',5,'OC-0230','Col. Narvarte','Refaccionaria San Miguel',{BAL:2,BUJ:3},'por_cobrar','porcobrar','',0),
+  mk(1048,'r1',6,'OC-0230','Col. Portales','Moto Centro',{FIL:1,FOC:1},'por_cobrar','porcobrar','',0),
+  mk(1041,'r2',1,'OC-0225','Col. Centro','Moto Refacciones Lupita',{FIL:3,CLU:1},'entregado','pagado','09:15',1,{ev:{demo:true}}),
+  mk(1044,'r2',2,'OC-0228','Col. Algarín','Motocarros Sandra',{CAD:2},'por_cobrar','pendiente','11:48',1),
+  mk(1046,'r2',3,'OC-0229','Col. Norte','Taller Norte',{BAL:2},'cancelado','cancelado','12:30',1),
+  mk(1049,'r2',4,'OC-0230','Col. Plaza','Moto Plaza',{CLU:2},'por_cobrar','porcobrar','',0),
+  old(1031,'Vie 13 nov','Taller Hnos. Ruiz',{BAL:1},'entregado','pagado','10:12'),
+  old(1032,'Vie 13 nov','Refaccionaria Lupe',{CAD:2,BUJ:1},'entregado','pagado','12:40'),
+  old(1033,'Vie 13 nov','Moto Servicio Max',{FIL:3},'cancelado','cancelado','16:05'),
+  old(1025,'Jue 12 nov','Mecánico Beto',{FOC:2},'entregado','pagado','09:30'),
+  old(1026,'Jue 12 nov','Taller La Esquina',{CLU:1,BUJ:2},'entregado','pagado','13:10'),
+ ],
+ ocs:[{id:'OC-0231',cliente:'Refaccionaria El Norte',zona:'Col. Lindavista',lin:{BAL:2,FIL:1}},
+      {id:'OC-0232',cliente:'Moto Express',zona:'Col. Del Valle',lin:{CAD:1,BUJ:4}},
+      {id:'OC-0233',cliente:'Taller Los Pinos',zona:'Col. Escandón',lin:{FOC:2,CLU:1}}],
+ avisos:[], edit:null, toast:null, sig:1050, actual:null, seg:360, integ:null, alterada:false, ev:{foto:null,firma:null},
+ pagos:[
+  {id:'P1',folio:1044,motivo:'monto_distinto',monto:0.04,esperado:0.10,hora:'11:52',banco:'Banco Demo A',cl:'••••4821',rastreo:'DEMO-7Q2K41',res:null},
+  {id:'P2',folio:1042,motivo:'fuera_de_vigencia',monto:0.04,esperado:0.04,hora:'10:21',banco:'Banco Demo B',cl:'••••9034',rastreo:'DEMO-3FX902',res:null},
+  {id:'P3',folio:1043,motivo:'duplicado',monto:0.07,esperado:0.07,hora:'11:27',banco:'Banco Demo A',cl:'••••4821',rastreo:'DEMO-8HD118',res:null},
+  {id:'P4',folio:null,motivo:'sin_cobro',monto:0.03,esperado:null,hora:'12:44',banco:'Banco Demo C',cl:'••••1177',rastreo:'DEMO-2LM560',res:null},
+ ],
+ bit:[]
+};
+const MOTIVO={monto_distinto:['Monto distinto','El cliente pagó una cantidad diferente al importe de la remisión.'],
+ fuera_de_vigencia:['Fuera de vigencia','El pago llegó después de que venció el cobro.'],
+ duplicado:['Duplicado','La remisión ya estaba pagada cuando llegó este segundo pago.'],
+ sin_cobro:['Sin cobro','No se encontró ninguna remisión que corresponda a este pago.']};
+const ESTADO_TXT={porcobrar:['○','Por cobrar'],pendiente:['⏳','Esperando pago'],pagado:['✔','Pagado'],vencido:['✖','Vencido'],cancelado:['⊘','Cancelado'],entregado:['✔✔','Entregado']};
+const badge = k => `<span class="ins ${k}"><span aria-hidden="true">${ESTADO_TXT[k][0]}</span>${ESTADO_TXT[k][1]}</span>`;
+const badgePedido = p => p.estado==='entregado'?badge('entregado'):badge(p.cobro);
+
+function log(actor,accion,folio,det){
+  const prev=S.bit.length?S.bit[S.bit.length-1].hash:'';
+  const id=S.bit.length+1, t=new Date(2026,10,14,12,45+S.bit.length);
+  const hora=t.toTimeString().slice(0,8);
+  S.bit.push({id,hora,actor,accion,folio,det,prev,hash:cyrb(prev+id+hora+actor+accion+folio+det)});
+}
+[['sembrado','datos_demo_cargados',null,'Órdenes de compra y rutas de ejemplo'],
+ ['admin','remision_asignada',1040,'OC-0224 a Repartidor Uno · parada 1'],['pey:webhook','pago_aplicado',1040,'Pago $0.02 · por intento_id'],
+ ['r1','pedido_entregado',1040,'Con foto y firma del cliente'],['admin','remision_asignada',1042,'OC-0226 a Repartidor Uno · parada 2'],
+ ['sistema','cobro_vencido',1042,'Venció el intento 5 de 5'],['admin','remision_asignada',1043,'OC-0227 a Repartidor Uno · parada 3'],
+ ['pey:webhook','pago_aplicado',1043,'Pago $0.07 · por intento_id'],
+ ['pey:webhook','pago_con_discrepancia',1043,'Resultado: duplicado']].forEach(a=>log(...a));
+
+/* ===== Derivados ===== */
+const totalDe = lin => Object.entries(lin).reduce((s,[k,q])=>s+PROD.find(p=>p.id===k).precio*q,0);
+const tot = p => Math.round(totalDe(p.lin)*100)/100;
+const npz = p => Object.values(p.lin).reduce((a,c)=>a+c,0);
+const pedido = f => S.pedidos.find(p=>p.folio===f);
+const ruta = rep => S.pedidos.filter(p=>p.rep===rep&&p.fecha==='Hoy').sort((a,b)=>a.parada-b.parada);
+const final = p => p.estado==='entregado'||p.estado==='cancelado'||(p.cobro==='vencido'&&p.intento>=5);
+const puedeOtro = p => p.cobro==='vencido'&&p.estado==='por_cobrar'&&p.intento<5;
+
+/* ===== QR de demostración (no es escaneable) ===== */
+function qrSvg(seed){
+  const N=25;let s=seed*9301+49297;const rnd=()=>{s=(s*9301+49297)%233280;return s/233280};
+  const f=(x,y)=>{const inB=(a,b)=>x>=a&&x<a+7&&y>=b&&y<b+7;return inB(0,0)||inB(N-7,0)||inB(0,N-7)};
+  let r='';
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){if(f(x,y)) continue; if(rnd()>.5) r+=`<rect x="${x}" y="${y}" width="1" height="1"/>`}
+  const finder=(a,b)=>`<rect x="${a}" y="${b}" width="7" height="7"/><rect x="${a+1}" y="${b+1}" width="5" height="5" fill="#fff"/><rect x="${a+2}" y="${b+2}" width="3" height="3"/>`;
+  return `<svg viewBox="-1 -1 ${N+2} ${N+2}" role="img" aria-label="QR de demostración, no escaneable" fill="#05070D" shape-rendering="crispEdges"><rect x="-1" y="-1" width="${N+2}" height="${N+2}" fill="#fff"/>${r}${finder(0,0)}${finder(N-7,0)}${finder(0,N-7)}</svg>`;
+}
+function pips(n,vencido){let h='';for(let i=1;i<=5;i++){const c=i<n?'u':(i===n?(vencido?'u':'a'):'');h+=`<i class="${c}"></i>`}return `<span class="pips" role="img" aria-label="Intento ${n} de 5">${h}</span>`}
+function mmss(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
+
+/* ===== Pantallas del repartidor ===== */
+const PIE='<div class="pie">Demostración con datos ficticios. Sin validez fiscal.</div>';
+function header(titulo,atras){return `<div class="app-h">${atras?`<button class="back" data-act="ir" data-p="${atras}" aria-label="Regresar">‹</button>`:''}<h1>${titulo}</h1><span class="quien">${REPS[YO].nombre}</span></div>`}
+function tabs(){const t=(p,i,l)=>`<button data-act="ir" data-p="${p}" ${S.rpant===p?'aria-current="page"':''}><span class="i" aria-hidden="true">${i}</span>${l}</button>`;
+  return `<nav class="tabs" aria-label="Principal">${t('ruta','🗺️','Mi ruta')}${t('historial','🧾','Historial')}</nav>`}
+function ctaRuta(p){
+  if(p.estado==='entregado') return 'Ver remisión';
+  if(p.cobro==='porcobrar') return 'Ver remisión y cobrar';
+  if(p.cobro==='pendiente') return 'Ver cobro';
+  if(p.cobro==='pagado') return 'Marcar entrega';
+  if(puedeOtro(p)) return '↻ Generar otro QR';
+  return 'Ver remisión';
+}
+const MOTIVOS=['Tráfico','El cliente lo pidió','Cierra temprano','Otro'];
+function scrOrden(){
+  const E=S.edit, fijas=ruta(YO).filter(final), pos=ruta(YO).filter(p=>!final(p)).map(p=>p.parada);
+  const cambio=E.orden.join()!==E.orig.join(), listo=cambio&&E.motivo;
+  return header('Cambiar orden')+`<div class="scroll"><div class="pad">
+   <div class="aviso-box info"><span class="ic" aria-hidden="true">ℹ</span><span>Mueva las paradas con ▲ y ▼. Las ya atendidas no se mueven. <b>Al guardar se avisa a administración.</b></span></div>
+   ${fijas.length?`<h3>Ya atendidas (no se mueven)</h3>`+fijas.map(p=>`<div class="card bloq"><div class="fila" style="gap:12px"><div class="num ${p.estado==='entregado'?'ok':'mal'}">${p.estado==='entregado'?'✔':'✖'}</div><div style="flex:1;min-width:0"><b style="overflow-wrap:anywhere">${esc(p.alias)}</b><div class="muted">Remisión ${p.folio}</div></div>${badgePedido(p)}</div></div>`).join(''):''}
+   <h3 style="margin-top:var(--e3)">Paradas por atender</h3>
+   ${E.orden.map((f,i)=>{const p=pedido(f);return `<div class="card ${E.ult===f?'movida':''}"><div class="fila" style="gap:12px">
+     <div class="num ya" aria-label="Parada ${pos[i]}">${pos[i]}</div>
+     <div style="flex:1;min-width:0"><b style="overflow-wrap:anywhere">${esc(p.alias)}</b><div class="muted">${p.zona} · ${peso(tot(p))}</div><div style="margin-top:6px">${badgePedido(p)}</div></div>
+     <div class="mov"><button data-act="mover" data-f="${f}" data-d="-1" aria-label="Subir ${esc(p.alias)}" ${i===0?'disabled':''}>▲</button><button data-act="mover" data-f="${f}" data-d="1" aria-label="Bajar ${esc(p.alias)}" ${i===E.orden.length-1?'disabled':''}>▼</button></div></div></div>`}).join('')}
+   <h3 style="margin-top:var(--e4)">Motivo del cambio</h3>
+   <div style="display:flex;gap:8px;flex-wrap:wrap" role="group" aria-label="Motivo">${MOTIVOS.map(m=>`<button class="chip" data-act="motivo" data-v="${m}" aria-pressed="${E.motivo===m}">${m}</button>`).join('')}</div>
+   <button class="btn" style="margin-top:var(--e4)" data-act="guardarOrden" ${listo?'':'disabled'}>Guardar orden y avisar</button>
+   <div class="muted" style="text-align:center;margin-top:8px">${!cambio?'Mueva al menos una parada.':!E.motivo?'Elija el motivo del cambio.':'Se avisará a administración.'}</div>
+   <button class="btn sec" style="margin-top:var(--e3)" data-act="cancelarOrden">Cancelar</button>
+  </div>${PIE}</div>`;
+}
+function scrRuta(){
+  if(S.edit) return scrOrden();
+  const R=ruta(YO), hechas=R.filter(p=>p.estado==='entregado').length;
+  const porCobrar=R.filter(p=>!final(p)&&p.cobro!=='pagado').reduce((s,p)=>s+tot(p),0);
+  const cobrado=R.filter(p=>p.cobro==='pagado').reduce((s,p)=>s+tot(p),0);
+  const sig=R.find(p=>!final(p));
+  const movibles=R.filter(p=>!final(p)).length;
+  return header('Mi ruta')+`<div class="scroll"><div class="pad">
+   ${S.toast?`<div class="aviso-box ok"><span class="ic" aria-hidden="true">✔</span><span>${S.toast}</span></div>`:''}
+   <div class="card hero"><div class="muted" style="color:var(--azul-hielo)">Sábado 14 de noviembre · ${R.length} paradas</div>
+    <div class="fila" style="margin-top:6px"><div><div class="monto" style="font-size:30px">${hechas} de ${R.length}</div><div class="muted" style="color:var(--azul-hielo)">entregadas</div></div>
+    <div style="text-align:right"><div class="muted" style="color:var(--azul-hielo)">Cobrado</div><div class="monto" style="font-size:22px">${peso(cobrado)}</div><div class="muted" style="color:var(--azul-hielo)">Por cobrar ${peso(porCobrar)}</div></div></div>
+    <div class="barra" style="margin-top:10px" role="img" aria-label="${hechas} de ${R.length} paradas entregadas"><i style="width:${R.length?hechas/R.length*100:0}%"></i></div></div>
+   ${movibles>=2?'<button class="btn sec" style="margin-bottom:var(--e3)" data-act="editarOrden">↕ Cambiar orden de paradas</button>':''}
+   ${R.map(p=>{const fin=final(p),esSig=sig&&sig.folio===p.folio;
+     const num=p.estado==='entregado'?'✔':(fin?'✖':p.parada);
+     return `<div class="card parada ${p.estado==='entregado'?'hecha':''} ${esSig?'sig':''}">
+      <div class="fila" style="align-items:flex-start;gap:12px"><div class="num ${p.estado==='entregado'?'ok':fin?'mal':esSig?'ya':''}" aria-label="Parada ${p.parada}">${num}</div>
+       <div style="flex:1;min-width:0"><div class="fila" style="align-items:flex-start"><div style="min-width:0"><b style="overflow-wrap:anywhere">${esc(p.alias)}</b><div class="muted">${p.zona}</div></div><span class="monto" style="font-size:18px">${peso(tot(p))}</span></div>
+        <div class="muted" style="margin-top:4px">Remisión ${p.folio} · ${p.oc} · ${npz(p)} ${npz(p)===1?'pieza':'piezas'}</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">${badgePedido(p)}${esSig?'<span class="ins aviso">➜ Siguiente parada</span>':''}</div></div></div>
+      <button class="btn ${esSig||p.cobro==='pagado'&&p.estado!=='entregado'?'':'sec'}" style="margin-top:12px" data-act="abrir" data-f="${p.folio}">${ctaRuta(p)}</button></div>`}).join('')}
+  </div>${PIE}</div>`+tabs();
+}
+function scrRemision(){
+  const p=pedido(S.actual);
+  let acc='';
+  if(p.cobro==='porcobrar') acc=`<button class="btn" data-act="cobrarYa">Cobrar ${peso(tot(p))} con CoDi</button><div class="muted" style="text-align:center;margin-top:8px">Se genera un QR por el monto de esta remisión.</div>`;
+  else if(p.cobro==='pendiente') acc=`<button class="btn" data-act="verCobro">Ver cobro (QR)</button>`;
+  else if(p.cobro==='pagado'&&p.estado!=='entregado') acc=`<button class="btn ambar" data-act="entregar">📦 Marcar entrega</button><div class="muted" style="text-align:center;margin-top:8px">Se pide foto de las piezas y firma del cliente.</div>`;
+  else if(puedeOtro(p)) acc=`<button class="btn" data-act="otroQR">↻ Generar otro QR · intento ${p.intento+1} de 5</button>`;
+  const verEst=(p.cobro!=='porcobrar')?`<button class="btn sec" style="margin-top:var(--e3)" data-act="verEstado">Ver estado del cobro</button>`:'';
+  return header('Remisión','ruta')+`<div class="scroll"><div class="pad">
+   <div class="card"><div class="fila"><div><div class="muted">Remisión</div><div class="monto" style="font-size:26px">${p.folio}</div></div>${badgePedido(p)}</div>
+    <div style="margin-top:10px"><b>${esc(p.alias)}</b><div class="muted">${p.zona} · Parada ${p.parada} · ${p.oc}</div></div></div>
+   <h3>Piezas por entregar</h3>
+   <div class="card">${Object.entries(p.lin).map(([k,q])=>{const pr=PROD.find(x=>x.id===k);return `<div class="fila" style="padding:8px 0;border-bottom:1px solid var(--linea)"><div style="min-width:0"><b>${pr.nombre}</b><div class="muted">${q} × ${peso(pr.precio)}</div></div><span class="monto">${peso(pr.precio*q)}</span></div>`}).join('')}
+    <div class="fila" style="margin-top:12px"><b>Total a cobrar</b><span class="monto" style="font-size:30px">${peso(tot(p))}</span></div></div>
+   ${acc}${verEst}
+  </div>${PIE}</div>`;
+}
+function scrHistorial(){
+  const mios=S.pedidos.filter(p=>p.rep===YO&&(S.hfil==='semana'||p.fecha==='Hoy')&&(p.cobro==='pagado'||p.estado==='entregado'||p.estado==='cancelado'));
+  const cobrado=mios.filter(p=>p.cobro==='pagado').reduce((s,p)=>s+tot(p),0);
+  const ent=mios.filter(p=>p.estado==='entregado').length, sin=mios.filter(p=>p.estado==='cancelado').length;
+  const dias=[...new Set(mios.map(p=>p.fecha))];
+  return header('Historial')+`<div class="scroll"><div class="pad">
+   <div style="display:flex;gap:8px;margin-bottom:var(--e3)" role="group" aria-label="Periodo">
+    <button class="chip" data-act="hfil" data-v="hoy" aria-pressed="${S.hfil==='hoy'}">Hoy</button><button class="chip" data-act="hfil" data-v="semana" aria-pressed="${S.hfil==='semana'}">Esta semana</button></div>
+   <div class="card hero"><div class="muted" style="color:var(--azul-hielo)">Cobrado ${S.hfil==='hoy'?'hoy':'esta semana'}</div><div class="monto" style="font-size:34px">${peso(cobrado)}</div>
+    <div class="muted" style="color:var(--azul-hielo);margin-top:4px">${ent} ${ent===1?'entrega':'entregas'} · ${sin} sin cobrar</div></div>
+   ${dias.map(d=>`<h3 style="margin-top:var(--e4)">${d==='Hoy'?'Hoy · sábado 14 de noviembre':d}</h3>`+mios.filter(p=>p.fecha===d).sort((a,b)=>b.folio-a.folio).map(p=>`<button class="card" data-act="abrir" data-f="${p.folio}" style="width:100%;text-align:left;min-height:var(--toque)">
+     <div class="fila"><b>Remisión ${p.folio}</b>${badgePedido(p)}</div>
+     <div class="fila" style="margin-top:6px"><span style="min-width:0;overflow-wrap:anywhere">${esc(p.alias)}</span><span class="monto">${peso(tot(p))}</span></div>
+     <div class="muted">${p.hora||'—'} h · ${npz(p)} piezas${p.estado==='entregado'?' · 📷 foto y ✍ firma':''}</div></button>`).join('')).join('')}
+  </div>${PIE}</div>`+tabs();
+}
+function scrCobrar(){
+  const p=pedido(S.actual);
+  return header('Cobrar','ruta')+`<div class="scroll"><div class="pad">
+   <div class="grande" style="padding:0 0 var(--e3)"><div class="muted">Remisión ${p.folio} · ${esc(p.alias)}</div><div class="monto" style="font-size:48px">${peso(tot(p))}</div></div>
+   <div class="qrbox">${qrSvg(p.folio*10+p.intento)}</div>
+   <div class="muted" style="text-align:center;margin:6px 0 var(--e3)">QR de demostración (no es escaneable). Escanee con la app de su banco.</div>
+   <div class="cuenta" id="cuenta" aria-live="off">${mmss(S.seg)}</div>
+   <div class="barra" id="barra" style="margin:6px 0 var(--e3)"><i style="width:${S.seg/3.6}%"></i></div>
+   <div class="fila" style="margin-bottom:var(--e3)"><span class="ins pendiente"><span aria-hidden="true">⏳</span>Esperando pago</span><span class="ins aviso">Intento ${p.intento} de 5</span></div>
+   <div class="fila" style="margin:0 0 var(--e3)"><span class="muted">Si el QR vence, podrá generar otro.</span>${pips(p.intento,false)}</div>
+   <div class="card"><div class="fila"><span class="muted">Folio de la remisión</span><b>${p.folio}</b></div></div>
+   <button class="btn sec" data-act="aviso">📲 Reenviar como aviso al celular del cliente</button>
+   <button class="btn peligro" style="margin-top:var(--e3)" data-act="pedirCancelar">Cancelar cobro</button>
+  </div>${PIE}</div>`;
+}
+function scrEstado(){
+  const p=pedido(S.actual), k=p.estado==='entregado'?'entregado':p.cobro;
+  let icono,titulo,msg,acc='';
+  if(k==='pendiente'){icono='⏳';titulo='Pendiente de pago';msg='Aún no recibimos el pago. Mantenga el QR a la vista del cliente. Esta pantalla se actualiza sola.';acc=`<button class="btn" data-act="irCobrar">Volver al QR</button>`}
+  if(k==='pagado'){icono='✔';titulo='Pagado';msg=`Recibimos ${peso(tot(p))}. Ya puede entregar las piezas al cliente.`;
+    acc=`<button class="btn ambar" data-act="entregar">📦 Marcar entrega</button><div class="muted" style="text-align:center;margin-top:8px">Se pide foto de las piezas y firma del cliente.</div>`}
+  if(k==='entregado'){icono='✔✔';titulo='Entregado';msg='La entrega quedó registrada con foto y firma del cliente.';acc=`<button class="btn" data-act="ir" data-p="ruta">Volver a mi ruta</button>`}
+  if(k==='vencido'){icono='✖';titulo='QR vencido';
+    if(puedeOtro(p)){const q=5-p.intento;
+      msg=`No se recibió pago a tiempo. Puede generar otro QR: quedan ${q} ${q===1?'intento':'intentos'}.`;
+      acc=`<div class="card"><div class="fila"><b>Intento ${p.intento} de 5 vencido</b>${pips(p.intento,true)}</div></div><button class="btn" data-act="otroQR">↻ Generar otro QR · intento ${p.intento+1} de 5</button><button class="btn peligro" style="margin-top:var(--e3)" data-act="pedirCancelar">Cancelar cobro</button>`}
+    else{msg='Se usaron los 5 intentos. El cobro quedó vencido: avise a administración para resolverlo.';
+      acc=`<div class="card"><div class="fila"><b>Intentos: 5 de 5</b>${pips(5,true)}</div></div><button class="btn" data-act="ir" data-p="ruta">Volver a mi ruta</button>`}}
+  if(k==='cancelado'){icono='⊘';titulo='Cobro cancelado';msg='El cobro se canceló. Si el cliente ya pagó, avise a administración.';acc=`<button class="btn" data-act="ir" data-p="ruta">Volver a mi ruta</button>`}
+  const nota=k==='pagado'?`<div class="aviso-box ambar"><span class="ic" aria-hidden="true">⚠</span><span><b>El pago no prueba la entrega.</b> Para confirmarla, tome una foto de las piezas y pida la firma del cliente.</span></div>`:k==='entregado'?`<div class="aviso-box ok"><span class="ic" aria-hidden="true">✔</span><span><b>Entrega confirmada</b> con foto y firma del cliente.</span></div>`:'';
+  const evid=(k==='entregado'&&p.ev&&p.ev.foto)?`<div class="card"><h3>Evidencia</h3><img class="ev" src="${p.ev.foto}" alt="Foto de la entrega"><img class="ev" style="margin-top:10px;background:#fff;object-fit:contain" src="${p.ev.firma}" alt="Firma del cliente"></div>`:(k==='entregado'?`<div class="card muted">Evidencia de demostración (sin imagen).</div>`:'');
+  return header('Estado del cobro','ruta')+`<div class="scroll"><div class="pad">
+   <div class="card grande" style="border-width:4px;border-color:${k==='pagado'||k==='entregado'?'#5EEAD4':k==='pendiente'?'#CFE0FF':'#FF4D55'}">
+    <div class="icono" aria-hidden="true">${icono}</div><h2>${titulo}</h2><div>${badgePedido(p)}</div>
+    <p style="font-size:18px">${msg}</p>
+    <div class="muted">Remisión ${p.folio} · ${esc(p.alias)}</div><div class="monto" style="font-size:34px">${peso(tot(p))}</div></div>
+   ${nota}${evid}${acc}
+  </div>${PIE}</div>`;
+}
+function scrEntrega(){
+  const p=pedido(S.actual),ev=S.ev,ok=ev.foto&&ev.firma;
+  return header('Confirmar entrega','estado')+`<div class="scroll"><div class="pad">
+   <div class="card"><div class="fila"><b>Remisión ${p.folio}</b>${badge('pagado')}</div><div class="muted">${esc(p.alias)} · ${npz(p)} ${npz(p)===1?'pieza':'piezas'} · ${peso(tot(p))}</div></div>
+   <h3>1. Foto de las piezas entregadas</h3>
+   <div class="card">${ev.foto?`<img class="ev" src="${ev.foto}" alt="Foto de la entrega">`:`<div class="vacio">Aún no hay foto</div>`}
+    <label class="btn sec" style="margin-top:12px;cursor:pointer" for="foto">📷 ${ev.foto?'Cambiar foto':'Tomar foto'}</label><input id="foto" type="file" accept="image/*" capture="environment" hidden></div>
+   <h3>2. Firma de quien recibe</h3>
+   <div class="card"><canvas id="firma" class="firma" role="img" aria-label="Espacio para la firma del cliente"></canvas>
+    <div class="fila" style="margin-top:10px"><span class="muted">Firme con el dedo dentro del recuadro.</span><button class="btn chico sec" data-act="borrarFirma">Borrar</button></div></div>
+   <div class="aviso-box info"><span class="ic" aria-hidden="true">ℹ</span><span>La foto debe mostrar las piezas, no a personas. La firma solo sirve para confirmar esta entrega.</span></div>
+   <button class="btn ambar" id="btnConf" data-act="confirmarEntrega" ${ok?'':'disabled'}>✔ Confirmar entrega</button>
+   <div class="muted" id="faltan" style="text-align:center;margin-top:8px">${faltaTxt()}</div>
+  </div>${PIE}</div>`;
+}
+function faltaTxt(){const f=[];if(!S.ev.foto)f.push('la foto');if(!S.ev.firma)f.push('la firma');return f.length?'Falta '+f.join(' y ')+'.':'Todo listo para confirmar.'}
+function updEntrega(){const b=$('#btnConf');if(b)b.disabled=!(S.ev.foto&&S.ev.firma);const f=$('#faltan');if(f)f.textContent=faltaTxt()}
+let FX=null;
+function setupFirma(){const c=$('#firma');if(!c){FX=null;return}
+  const r=c.getBoundingClientRect(),d=window.devicePixelRatio||1;c.width=Math.round(r.width*d);c.height=Math.round(r.height*d);
+  const x=c.getContext('2d');x.scale(d,d);
+  const base=()=>{x.setLineDash([]);x.fillStyle='#fff';x.fillRect(0,0,r.width,r.height);x.strokeStyle='#9AA7C4';x.lineWidth=1.5;x.setLineDash([6,6]);x.beginPath();x.moveTo(16,r.height-34);x.lineTo(r.width-16,r.height-34);x.stroke();x.setLineDash([]);x.fillStyle='#6B7A9C';x.font='16px Arial';x.fillText('✕',16,r.height-40)};
+  base();FX={x,r,base,dibujando:false};
+  if(S.ev.firma){const im=new Image();im.onload=()=>x.drawImage(im,0,0,r.width,r.height);im.src=S.ev.firma}}
+function pos(e){const b=e.target.getBoundingClientRect();return [e.clientX-b.left,e.clientY-b.top]}
+document.addEventListener('pointerdown',e=>{if(e.target.id==='firma'&&FX){FX.dibujando=true;e.target.setPointerCapture(e.pointerId);const [a,b]=pos(e);FX.x.strokeStyle='#0C2340';FX.x.lineWidth=2.8;FX.x.lineCap='round';FX.x.lineJoin='round';FX.x.beginPath();FX.x.moveTo(a,b);FX.x.lineTo(a+.1,b+.1);FX.x.stroke();FX.x.beginPath();FX.x.moveTo(a,b);e.preventDefault()}});
+document.addEventListener('pointermove',e=>{if(FX&&FX.dibujando&&e.target.id==='firma'){const [a,b]=pos(e);FX.x.lineTo(a,b);FX.x.stroke()}});
+const finFirma=e=>{if(FX&&FX.dibujando){FX.dibujando=false;S.ev.firma=$('#firma').toDataURL('image/png');updEntrega()}};
+document.addEventListener('pointerup',finFirma);document.addEventListener('pointercancel',finFirma);
+document.addEventListener('change',e=>{if(e.target.id!=='foto'||!e.target.files[0])return;
+  const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const m=900,k=Math.min(1,m/Math.max(im.width,im.height));const c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);S.ev.foto=c.toDataURL('image/jpeg',.8);render()};im.src=fr.result};fr.readAsDataURL(e.target.files[0])});
+
+/* ===== Administrador ===== */
+function avisosHtml(){const L=S.avisos.filter(x=>!x.visto);if(!L.length)return '';
+  return `<div style="margin-top:var(--e4)">${L.map(a=>`<div class="aviso-box info" style="display:block"><div class="fila"><b>↕ ${REPS[a.rep].nombre} cambió el orden de su ruta</b><span class="muted">${a.hora} h</span></div><div class="muted" style="margin:6px 0">Motivo: ${a.motivo}</div>${a.cambios.map(c=>`<div>${esc(c.alias)}: parada ${c.de} → ${c.a}</div>`).join('')}<button class="btn chico sec" style="margin-top:10px" data-act="verAviso" data-id="${a.id}">Marcar como visto</button></div>`).join('')}</div>`}
+function aNav(){const n=S.pagos.filter(x=>!x.res).length, o=S.ocs.length, av=S.avisos.filter(x=>!x.visto).length;
+  const b=(k,l,x='')=>`<button data-act="aIr" data-p="${k}" ${S.apant===k?'aria-current="page"':''}><span>${l}</span>${x}</button>`;
+  return `<aside class="side"><div style="color:#A9B6D3;font-size:12px;padding:8px 14px;font-weight:700;letter-spacing:.06em">ADMINISTRACIÓN</div>${b('tablero','Tablero',av?`<span class="n">${av}</span>`:'')}${b('rutas','Remisiones y rutas',o?`<span class="n">${o}</span>`:'')}${b('pagos','Pagos por resolver',n?`<span class="n">${n}</span>`:'')}${b('bitacora','Bitácora e integridad')}</aside>`}
+function evCell(p){return p.estado==='entregado'?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="ins ok">✔ Foto y firma</span><button class="btn chico sec" data-act="verEv" data-f="${p.folio}">Ver</button></div>`:p.cobro==='pagado'?'<span class="ins aviso">Sin entregar</span>':'<span class="muted">—</span>'}
+function aTablero(){
+  const P=S.pedidos.filter(p=>p.fecha==='Hoy');
+  const xc=P.filter(p=>p.cobro==='porcobrar'||p.cobro==='pendiente').length, pag=P.filter(p=>p.cobro==='pagado').length, ven=P.filter(p=>p.cobro==='vencido').length;
+  const cobrado=P.filter(p=>p.cobro==='pagado').reduce((s,p)=>s+tot(p),0);
+  return `<h1>Tablero del día</h1><div class="muted">Sábado 14 de noviembre de 2026 · actualizado hace unos segundos</div>
+  ${avisosHtml()}
+  <div class="kpis"><div class="kpi"><div class="v">${xc}</div><div class="l">${badge('porcobrar')} remisiones</div></div>
+  <div class="kpi"><div class="v">${pag}</div><div class="l">${badge('pagado')} remisiones</div></div>
+  <div class="kpi"><div class="v">${ven}</div><div class="l">${badge('vencido')} remisiones</div></div>
+  <div class="kpi hero"><div class="v">${peso(cobrado)}</div><div class="l">Total cobrado</div></div></div>
+  <div class="dos"><div><h2>Avance de rutas</h2>${['r1','r2'].map(r=>{const R=ruta(r),h=R.filter(p=>p.estado==='entregado').length;
+   return `<div class="card"><div class="fila"><b>${REPS[r].nombre}</b><span class="muted">${h} de ${R.length} entregadas</span></div><div class="mini" style="margin-top:8px" role="img" aria-label="${h} de ${R.length} paradas"><i style="width:${R.length?h/R.length*100:0}%"></i></div></div>`}).join('')}</div>
+  <div><h2>Resumen por repartidor</h2><table class="t"><thead><tr><th>Repartidor</th><th class="r">Remisiones</th><th class="r">Cobrado</th></tr></thead><tbody>${['r1','r2'].map(r=>{const m=ruta(r);return `<tr><td>${REPS[r].nombre}</td><td class="r">${m.length}</td><td class="r"><b>${peso(m.filter(p=>p.cobro==='pagado').reduce((s,p)=>s+tot(p),0))}</b></td></tr>`}).join('')}</tbody></table></div></div>
+  <h2 style="margin-top:var(--e5)">Remisiones del día</h2><div class="tw"><table class="t"><thead><tr><th>Remisión</th><th>Cliente</th><th>Repartidor</th><th class="r">Parada</th><th class="r">Importe</th><th>Cobro</th><th>Entrega</th></tr></thead><tbody>
+  ${[...P].sort((a,b)=>b.folio-a.folio).map(p=>`<tr><td><b>${p.folio}</b><div class="muted">${p.oc}</div></td><td>${esc(p.alias)}</td><td>${REPS[p.rep].nombre}</td><td class="r">${p.parada}</td><td class="r"><b>${peso(tot(p))}</b></td><td>${badgePedido(p)}</td><td>${evCell(p)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function aRutas(){
+  return `<h1>Remisiones y rutas</h1><div class="muted">Las órdenes de compra se convierten en remisiones y se asignan a la ruta de un repartidor. Él cobra el monto de cada remisión.</div>
+  ${avisosHtml()}
+  <h2 style="margin-top:var(--e5)">Órdenes de compra por asignar</h2>
+  ${S.ocs.length?`<div class="tw"><table class="t"><thead><tr><th>Orden</th><th>Cliente</th><th>Piezas</th><th class="r">Monto</th><th>Acción</th></tr></thead><tbody>
+  ${S.ocs.map(o=>`<tr><td><b>${o.id}</b></td><td>${esc(o.cliente)}<div class="muted">${o.zona}</div></td><td class="muted">${Object.entries(o.lin).map(([k,q])=>q+' × '+PROD.find(p=>p.id===k).nombre).join(', ')}</td><td class="r"><b>${peso(totalDe(o.lin))}</b></td><td><button class="btn chico" data-act="asignar" data-id="${o.id}">Crear remisión y asignar</button></td></tr>`).join('')}</tbody></table></div>`
+   :'<div class="aviso-box ok"><span class="ic">✔</span><span>No hay órdenes de compra pendientes de asignar.</span></div>'}
+  <h2 style="margin-top:var(--e5)">Rutas del día</h2>
+  <div class="dos">${['r1','r2'].map(r=>{const R=ruta(r);return `<div class="card"><div class="fila"><b>${REPS[r].nombre}</b><span class="muted">${R.length} paradas</span></div>
+   ${R.map(p=>`<div class="fila" style="padding:10px 0;border-top:1px solid var(--linea);align-items:flex-start"><div style="min-width:0"><b>${p.parada}. ${esc(p.alias)}</b><div class="muted">Remisión ${p.folio} · ${p.oc} · ${peso(tot(p))}</div>${p.mov?`<div class="muted" style="color:var(--azul-claro)">↕ Parada ${p.mov.de} → ${p.parada} (cambio del repartidor)</div>`:''}</div>${badgePedido(p)}</div>`).join('')}</div>`}).join('')}</div>`;
+}
+function aPagos(){
+  return `<h1>Pagos por resolver</h1><div class="muted">Pagos que llegaron con alguna discrepancia. Toda resolución exige una nota.</div>
+  <div class="aviso-box info" style="margin-top:var(--e4)"><span class="ic" aria-hidden="true">ℹ</span><span>El sistema no devuelve dinero. «Devolver» deja la devolución pendiente y usted la hace desde su banco.</span></div>
+  <div class="tw"><table class="t"><thead><tr><th>Motivo</th><th>Remisión</th><th class="r">Pagó</th><th class="r">Esperado</th><th>Pagador</th><th>Acción</th></tr></thead><tbody>
+  ${S.pagos.map(g=>{const [m,d]=MOTIVO[g.motivo];
+    const puede=g.motivo==='fuera_de_vigencia'&&g.monto===g.esperado;
+    const est=g.res?`<span class="ins ${g.res==='aceptado'?'ok':'aviso'}">${g.res==='aceptado'?'✔ Aceptado':'↩ Devolución pendiente'}</span><div class="muted" style="margin-top:4px;max-width:260px">Nota: ${esc(g.nota)}</div>`
+      :`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn chico" data-act="resolver" data-id="${g.id}" data-a="aceptar" ${puede?'':'disabled'}>Aceptar</button><button class="btn chico sec" data-act="resolver" data-id="${g.id}" data-a="devolver">Devolver</button></div>${puede?'':'<div class="muted" style="margin-top:4px;font-size:12px">Aceptar solo aplica a pagos fuera de vigencia con monto igual.</div>'}`;
+    return `<tr><td><span class="ins aviso">⚠ ${m}</span><div class="muted" style="max-width:220px;margin-top:4px">${d}</div></td><td>${g.folio?`<b>${g.folio}</b>`:'<span class="muted">— (ninguna)</span>'}</td><td class="r"><b>${peso(g.monto)}</b></td><td class="r">${g.esperado!=null?peso(g.esperado):'—'}</td><td>${g.banco}<div class="muted">CLABE ${g.cl}<br>Rastreo ${g.rastreo}<br>${g.hora} h</div></td><td>${est}</td></tr>`}).join('')}</tbody></table></div>`;
+}
+const PRUEBAS=[['Cadena de huellas de la bitácora',()=>S.alterada?[false,'primera fila alterada: 4']:[true,S.bit.length+' filas verificadas']],
+ ['Remisiones pagadas coinciden con pagos aplicados',()=>[true,'0 diferencias']],
+ ['Cada entrega tiene foto y firma',()=>[true,'0 entregas sin evidencia']],
+ ['Montos de las remisiones coinciden con sus órdenes de compra',()=>[true,'0 diferencias']]];
+function aBit(){
+  const res=S.integ;
+  return `<h1>Bitácora y verificación de integridad</h1><div class="muted">La bitácora solo admite agregar filas. Cada fila lleva la huella de la anterior.</div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin:var(--e4) 0"><button class="btn chico" data-act="verificar">Verificar integridad</button><button class="btn chico sec" data-act="alterar">${S.alterada?'Quitar alteración simulada':'Simular alteración (demo)'}</button></div>
+  ${res?PRUEBAS.map((p,i)=>`<div class="chk"><div><b>${p[0]}</b><div class="muted">${res[i][1]}</div></div>${res[i][0]?'<span class="ins ok">✔ OK</span>':'<span class="ins falla">✖ FALLA</span>'}</div>`).join(''):'<div class="aviso-box info"><span class="ic">ℹ</span><span>Pulse «Verificar integridad» para correr las cuatro revisiones.</span></div>'}
+  <h2 style="margin-top:var(--e5)">Bitácora</h2><div class="tw"><table class="t"><thead><tr><th>#</th><th>Hora</th><th>Quién</th><th>Acción</th><th>Remisión</th><th>Detalle</th><th>Huella</th></tr></thead><tbody>
+  ${[...S.bit].reverse().map(b=>`<tr><td>${b.id}</td><td>${b.hora}</td><td>${esc(b.actor)}</td><td><b>${b.accion}</b></td><td>${b.folio||'—'}</td><td>${esc(b.det)}</td><td class="hash">${b.hash.slice(0,10)}…<br>ant ${b.prev?b.prev.slice(0,6)+'…':'—'}</td></tr>`).join('')}</tbody></table></div>`;
+}
+/* ===== Guía de estilo ===== */
+function estilo(){
+  const c=[['Negro vacío','#05070D','#F4F7FF','Fondo base · tonatiuh-suite (void)'],['Negro superficie','#0D1018','#F4F7FF','Superficies sólidas · tonatiuh-suite'],['Azul medianoche','#0A0F2E','#F4F7FF','ixim-pay (primary)'],['Azul acción','#2563EB','#fff','Botón principal (5.2:1 con blanco)'],['Azul claro','#8FB4FF','#05070D','Foco, siguiente parada, esperando pago'],['Rosa vivo','#FF4F9A','#05070D','Fondo vivo, pestaña activa y detalles'],['Rosa profundo','#E11D74','#fff','Resplandor del fondo'],['Aqua (éxito)','#5EEAD4','#04232A','Pagado, OK, entregada (≈ 12:1 con su texto)'],['Rojo error','#FF4D55','#05070D','Error, cancelado, falla (≈ 6:1 sobre negro)'],['Rojo botón','#D61F3A','#fff','Acción destructiva sólida (≈ 5.4:1)'],['Texto','#F4F7FF','#05070D','Texto principal (18.8:1)'],['Texto secundario','#A9B6D3','#05070D','Apoyos (9.9:1)']];
+  return `<div class="estilo"><div class="panel"><h1>Guía de estilo de Poch · oscuro vivo con vidrio</h1><div class="muted">Negros de tonatiuh-suite, azules de ixim-pay y kit-to-drive. Rosa para el fondo vivo y detalles; aqua para lo que salió bien; rojo solo para errores.</div>
+  <h2 style="margin-top:var(--e5)">Colores</h2><div class="sw">${c.map(x=>`<div style="background:${x[1]};color:${x[2]}">${x[0]}<br><code style="font-weight:500;font-family:var(--mono)">${x[1]}</code><br><span style="font-weight:400">${x[3]}</span></div>`).join('')}</div>
+  <h2 style="margin-top:var(--e5)">Fondo vivo</h2>
+  <p>Cuatro manchas de luz (dos azules, dos rosas) sobre negro. La rosa grande sube y baja (13 s) y su intensidad respira entre 28 % y 100 % (7 s); las demás se desplazan lento. Se detiene si el sistema pide «reducir movimiento». Solo CSS.</p>
+  <h2 style="margin-top:var(--e5)">Vidrio (receta)</h2>
+  <p>Fondo <code class="k">rgba(14,20,42,.66)</code> · <code class="k">blur(22px) saturate(165%)</code> · borde <code class="k">1px rgba(255,255,255,.16)</code> · brillo superior <code class="k">inset 0 1px rgba(255,255,255,.22)</code>. Respaldo sin desenfoque: sólido <code class="k">#0D1224</code>. El QR va siempre sobre blanco sólido.</p>
+  <div class="dos"><div class="card"><b>Tarjeta de vidrio</b><div class="muted">Texto secundario sobre vidrio</div></div><div class="card hero"><b>Tarjeta destacada</b><div class="muted" style="color:var(--azul-hielo)">Degradado azul-rosa con brillo</div></div></div>
+  <h2 style="margin-top:var(--e5)">Tipografía</h2>
+  <table class="t"><tbody><tr><td>Monto grande</td><td><span class="monto" style="font-size:48px">$0.07</span></td><td class="muted">JetBrains Mono 48 px · 700</td></tr>
+  <tr><td>Título de pantalla</td><td><b style="font-size:20px">Mi ruta</b></td><td class="muted">Sora 20 px · 700</td></tr>
+  <tr><td>Texto base (celular)</td><td>Remisión 1045 · Mecánico Rafa</td><td class="muted">Sora 16–18 px</td></tr></tbody></table>
+  <h2 style="margin-top:var(--e5)">Espaciado y forma</h2>
+  <p>Escala de 4: <code class="k">4</code> <code class="k">8</code> <code class="k">12</code> <code class="k">16</code> <code class="k">24</code> <code class="k">32</code> px · radio <code class="k">18 px</code> · toque mínimo <code class="k">56 px</code> (44 px en administrador) · bordes de 2 px en controles.</p>
+  <h2>Estados: color, símbolo, borde y relleno</h2>
+  <div style="display:flex;gap:12px;flex-wrap:wrap">${['porcobrar','pendiente','pagado','vencido','cancelado','entregado'].map(badge).join('')}<span class="ins ok">✔ OK</span><span class="ins falla">✖ FALLA</span></div>
+  <p class="muted">Por cobrar: contorno sólido ○ · Esperando pago: contorno azul discontinuo ⏳ · Pagado: relleno aqua con borde blanco ✔ · Vencido: contorno punteado gris ✖ · Cancelado: rojo y tachado ⊘ · Entregado: relleno blanco ✔✔.</p>
+  <h2>Componentes</h2>
+  <p><code class="k">.btn</code> · <code class="k">.ins</code> · <code class="k">.card</code> · <code class="k">.parada</code> + <code class="k">.num</code> (parada de la ruta) · <code class="k">.chip</code> (filtro) · <code class="k">.aviso-box</code> · <code class="k">.kpi</code> · <code class="k">table.t</code> · <code class="k">.modal</code> · <code class="k">qrSvg()</code> · <code class="k">.cuenta</code> + <code class="k">.barra</code> · <code class="k">.pips</code> (intentos) · <code class="k">.vivo</code> fondo.</p>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;max-width:620px"><button class="btn" style="width:auto">Principal</button><button class="btn sec" style="width:auto">Secundario</button><button class="btn ambar" style="width:auto">Marcar entrega</button><button class="btn peligro" style="width:auto">Cancelar</button></div>
+  <h2 style="margin-top:var(--e5)">Referencias abiertas consultadas</h2>
+  <p class="muted">Solo ideas de diseño; no se copió código. <a style="color:var(--azul-claro)" href="https://github.com/naughtyduk/liquidGL">liquidGL</a> (MIT) · <a style="color:var(--azul-claro)" href="https://cdn.jsdelivr.net/npm/@jungherz-de/glasskit@1.19.1/README.md">GlassKit</a> (MIT) · <a style="color:var(--azul-claro)" href="https://21st.dev/@muhammad-binsalman/components/glassmorphic-wallet-card">Glassmorphic Wallet Card</a> (licencia no indicada, solo referencia visual).</p>
+  </div></div>`;
+}
+/* ===== Render ===== */
+function render(){
+  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S.vista));
+  const app=$('#app');
+  if(S.vista==='rep'){
+    const m={ruta:scrRuta,remision:scrRemision,historial:scrHistorial,cobrar:scrCobrar,estado:scrEstado,entrega:scrEntrega}[S.rpant];
+    app.innerHTML=`<div class="phone">${m()}</div>`;
+  }else if(S.vista==='admin'){
+    const m={tablero:aTablero,rutas:aRutas,pagos:aPagos,bitacora:aBit}[S.apant];
+    app.innerHTML=`<div class="admin">${aNav()}<main class="panel">${m()}</main></div>`;
+  }else app.innerHTML=estilo();
+  setupFirma();
+  if(S.vista==='rep'&&S.rpant==='ruta'&&!S.edit){const sc=$('.phone .scroll'),el=$('.parada.sig');if(sc&&el){sc.scrollTop=Math.max(0,el.offsetTop-sc.offsetTop-12)}}
+  const sim=$('#sim');
+  if(S.vista==='rep'&&(S.rpant==='cobrar'||S.rpant==='estado')){
+    sim.innerHTML=`Simulador del cliente:<button data-act="simPago">Simular pago</button><button data-act="simVence">Simular vencimiento</button>`;
+  }else sim.innerHTML='';
+}
+function modal(html){$('#modal').innerHTML=html?`<div class="velo" role="dialog" aria-modal="true"><div class="modal">${html}</div></div>`:''}
+function tick(){
+  if(S.vista==='rep'&&S.rpant==='cobrar'&&S.actual){
+    const p=pedido(S.actual);
+    if(p.cobro==='pendiente'){S.seg=Math.max(0,S.seg-1);p.seg=S.seg;
+      const c=$('#cuenta'),b=$('#barra');
+      if(c){c.textContent=mmss(S.seg);c.classList.toggle('poco',S.seg<=60)}
+      if(b){b.firstElementChild.style.width=(S.seg/3.6)+'%';b.classList.toggle('poco',S.seg<=60)}
+      if(S.seg===0) vence();}}
+}
+function vence(){const p=pedido(S.actual);p.cobro='vencido';p.seg=0;
+  log('sistema',p.intento>=5?'cobro_vencido':'intento_expirado',p.folio,'Venció el intento '+p.intento+' de 5');
+  S.rpant='estado';render()}
+setInterval(tick,1000);
+
+/* ===== Eventos ===== */
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-act]');if(!t)return;const a=t.dataset.act,d=t.dataset;
+  if(a==='vista'){S.vista=d.v;render()}
+  else if(a==='ir'){S.toast=null;S.edit=null;S.rpant=d.p;render()}
+  else if(a==='aIr'){S.apant=d.p;render()}
+  else if(a==='hfil'){S.hfil=d.v;render()}
+  else if(a==='abrir'){S.toast=null;S.actual=+d.f;S.rpant='remision';render()}
+  else if(a==='editarOrden'){S.toast=null;const m=ruta(YO).filter(p=>!final(p)).map(p=>p.folio);S.edit={orden:[...m],orig:[...m],motivo:null,ult:null};render()}
+  else if(a==='mover'||a==='motivo'){const sc=$('.phone .scroll'),st=sc?sc.scrollTop:0;const E=S.edit;
+    if(a==='mover'){const f=+d.f,i=E.orden.indexOf(f),j=i+(+d.d);if(j>=0&&j<E.orden.length){[E.orden[i],E.orden[j]]=[E.orden[j],E.orden[i]];E.ult=f}}
+    else{E.motivo=d.v;E.ult=null}
+    render();const sc2=$('.phone .scroll');if(sc2)sc2.scrollTop=st}
+  else if(a==='cancelarOrden'){S.edit=null;render()}
+  else if(a==='guardarOrden'){const E=S.edit;if(!(E.orden.join()!==E.orig.join()&&E.motivo))return;
+    const pos=ruta(YO).filter(p=>!final(p)).map(p=>p.parada);const cambios=[];
+    E.orden.forEach((f,i)=>{const p=pedido(f);if(p.parada!==pos[i]){cambios.push({alias:p.alias,de:p.parada,a:pos[i]});p.mov={de:(p.mov?p.mov.de:p.parada),a:pos[i]};p.parada=pos[i]}});
+    const txt=cambios.map(c=>c.alias+' '+c.de+'→'+c.a).join('; ');
+    log(YO,'ruta_reordenada',null,txt+' · motivo: '+E.motivo);
+    const hora=S.bit[S.bit.length-1].hora.slice(0,5);
+    S.avisos.push({id:'A'+(S.avisos.length+1),hora,rep:YO,motivo:E.motivo,cambios,visto:false});
+    S.toast='Orden guardado. Se avisó a administración ('+hora+' h).';S.edit=null;render()}
+  else if(a==='verAviso'){const x=S.avisos.find(v=>v.id===d.id);if(x)x.visto=true;render()}
+  else if(a==='verEstado'){S.rpant='estado';render()}
+  else if(a==='cobrarYa'){const p=pedido(S.actual);p.cobro='pendiente';p.intento=1;p.seg=360;S.seg=360;p.hora='12:5'+(p.folio%10);log(YO,'intento_creado',p.folio,'Intento 1 de 5 por '+peso(tot(p)));S.rpant='cobrar';render()}
+  else if(a==='verCobro'||a==='irCobrar'){const p=pedido(S.actual);S.seg=p.seg!=null?p.seg:360;S.rpant='cobrar';render()}
+  else if(a==='simPago'){const p=pedido(S.actual);if(p.cobro==='pendiente'){p.cobro='pagado';p.estado='pagado';log('pey:webhook','pago_aplicado',p.folio,'Pago '+peso(tot(p))+' · por intento_id');S.rpant='estado';render()}}
+  else if(a==='simVence'){const p=pedido(S.actual);if(p.cobro==='pendiente'){vence()}}
+  else if(a==='entregar'){S.ev={foto:null,firma:null};S.rpant='entrega';render()}
+  else if(a==='borrarFirma'){if(FX){FX.base()}S.ev.firma=null;updEntrega()}
+  else if(a==='confirmarEntrega'){if(!(S.ev.foto&&S.ev.firma))return;const p=pedido(S.actual);p.estado='entregado';p.ev={foto:S.ev.foto,firma:S.ev.firma};log(YO,'pedido_entregado',p.folio,'Con foto y firma del cliente');S.rpant='estado';render()}
+  else if(a==='verEv'){const p=pedido(+d.f);modal(`<h2>Evidencia · remisión ${p.folio}</h2><p class="muted">${esc(p.alias)}</p>${p.ev&&p.ev.foto?`<img class="ev" src="${p.ev.foto}" alt="Foto de la entrega"><img class="ev" style="margin-top:10px;background:#fff;object-fit:contain" src="${p.ev.firma}" alt="Firma del cliente">`:'<div class="aviso-box info"><span class="ic">ℹ</span><span>Evidencia de demostración: en el sistema real aquí se ve la foto y la firma.</span></div>'}<button class="btn sec" style="margin-top:12px" data-act="cerrar">Cerrar</button>`)}
+  else if(a==='otroQR'){const p=pedido(S.actual);p.intento++;p.cobro='pendiente';p.seg=360;S.seg=360;log(YO,'intento_creado',p.folio,'Intento '+p.intento+' de 5');S.rpant='cobrar';render()}
+  else if(a==='pedirCancelar'){modal(`<h2>¿Cancelar este cobro?</h2><p>La remisión queda cancelada y se avisa a administración. Si el cliente ya pagó, avise a administración.</p><button class="btn peligro" data-act="cancelar">Sí, cancelar cobro</button><button class="btn sec" style="margin-top:12px" data-act="cerrar">No, volver</button>`)}
+  else if(a==='cancelar'){const p=pedido(S.actual);p.cobro='cancelado';p.estado='cancelado';log(YO,'pedido_cancelado',p.folio,'Cobro cancelado por el repartidor');modal('');S.rpant='estado';render()}
+  else if(a==='cerrar'){modal('')}
+  else if(a==='aviso'){modal(`<h2>Aviso al celular del cliente</h2><p class="muted">Escriba los 10 dígitos. Solo se usa para enviar el aviso; no se guarda.</p><label for="tel">Celular (10 dígitos)</label><input id="tel" type="tel" inputmode="numeric" maxlength="10" placeholder="10 dígitos"><div id="telerr" class="muted" style="color:var(--rojo);min-height:22px;margin-top:6px"></div><button class="btn" style="margin-top:8px" data-act="enviarAviso">Enviar aviso</button><button class="btn sec" style="margin-top:12px" data-act="cerrar">Cerrar</button>`)}
+  else if(a==='enviarAviso'){const v=$('#tel').value;if(!/^[0-9]{10}$/.test(v)){$('#telerr').textContent='Escriba exactamente 10 dígitos, sin espacios.';return}
+    const p=pedido(S.actual);log(YO,'aviso_enviado',p.folio,'Aviso CoDi al celular (número no guardado)');
+    modal(`<div class="grande"><div class="icono" aria-hidden="true">📲</div><h2>Aviso enviado</h2><p>El cliente verá el cobro en la app de su banco. El número no se guardó. El QR sigue vigente.</p></div><button class="btn" data-act="cerrar">Entendido</button>`)}
+  else if(a==='asignar'){const o=S.ocs.find(x=>x.id===d.id);
+    modal(`<h2>Crear remisión y asignar</h2><p class="muted">${o.id} · ${esc(o.cliente)} · ${peso(totalDe(o.lin))}</p><label for="rep">Repartidor</label><select id="rep"><option value="r1">${REPS.r1.nombre} (${ruta('r1').length} paradas)</option><option value="r2">${REPS.r2.nombre} (${ruta('r2').length} paradas)</option></select>
+     <div class="aviso-box info"><span class="ic">ℹ</span><span>Se agrega como la última parada de su ruta. El repartidor cobra exactamente el monto de la orden.</span></div>
+     <div style="display:flex;gap:10px"><button class="btn chico" data-act="confirmarAsignar" data-id="${o.id}">Asignar</button><button class="btn chico sec" data-act="cerrar">Cancelar</button></div>`)}
+  else if(a==='confirmarAsignar'){const o=S.ocs.find(x=>x.id===d.id),rep=$('#rep').value;
+    const par=Math.max(0,...ruta(rep).map(p=>p.parada))+1;
+    const p=mk(S.sig++,rep,par,o.id,o.zona,o.cliente,{...o.lin},'por_cobrar','porcobrar','',0);S.pedidos.push(p);S.ocs=S.ocs.filter(x=>x.id!==o.id);
+    log('admin','remision_asignada',p.folio,o.id+' a '+REPS[rep].nombre+' · parada '+par);modal('');render()}
+  else if(a==='resolver'){const g=S.pagos.find(x=>x.id===d.id);const acc=d.a;
+    modal(`<h2>${acc==='aceptar'?'Aceptar pago':'Devolver pago'}</h2><p class="muted">${MOTIVO[g.motivo][0]} · ${peso(g.monto)} · ${g.banco} · rastreo ${g.rastreo}</p>
+     ${acc==='devolver'?'<div class="aviso-box ambar"><span class="ic">⚠</span><span>Quedará como devolución pendiente. La devolución real se hace desde el banco.</span></div>':'<div class="aviso-box info"><span class="ic">ℹ</span><span>La remisión pasará a pagada.</span></div>'}
+     <label for="nota">Nota obligatoria (mínimo 5 caracteres)</label><textarea id="nota" placeholder="Explique la decisión"></textarea><div id="notaerr" style="color:var(--rojo);min-height:22px;font-weight:600"></div>
+     <div style="display:flex;gap:10px;margin-top:8px"><button class="btn chico" data-act="confirmarRes" data-id="${g.id}" data-a="${acc}">Confirmar</button><button class="btn chico sec" data-act="cerrar">Cancelar</button></div>`)}
+  else if(a==='confirmarRes'){const n=$('#nota').value.trim();if(n.length<5){$('#notaerr').textContent='⚠ La nota es obligatoria (mínimo 5 caracteres).';return}
+    const g=S.pagos.find(x=>x.id===d.id);g.nota=n;g.res=d.a==='aceptar'?'aceptado':'devolucion_pendiente';
+    if(d.a==='aceptar'){const p=pedido(g.folio);if(p){p.cobro='pagado';p.estado='pagado'}}
+    log('admin','pago_resuelto',g.folio,d.a+': '+n.slice(0,40));modal('');render()}
+  else if(a==='verificar'){S.integ=PRUEBAS.map(p=>p[1]());render()}
+  else if(a==='alterar'){S.alterada=!S.alterada;S.integ=null;render()}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')modal('')});
+const _tb=document.querySelector('.topbar');const _setTb=()=>document.documentElement.style.setProperty('--tb',_tb.offsetHeight+'px');
+if(window.ResizeObserver)new ResizeObserver(_setTb).observe(_tb);_setTb();addEventListener('resize',_setTb);
+render();
+</script>
+</body>
+</html>
