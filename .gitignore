@@ -4,8 +4,10 @@ dist/
 .env.*
 !.env.example
 .vercel/
+.supabase/
 supabase/.temp/
 supabase/.branches/
 .DS_Store
 *.log
 coverage/
+*.tsbuildinfo

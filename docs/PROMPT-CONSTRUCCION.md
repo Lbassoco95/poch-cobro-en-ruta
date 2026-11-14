@@ -42,17 +42,17 @@ Idea de la hoja de pey que cubre: «Cobro al entregar» (5), con «Pedidos» (2)
 Aun así, antes de escribir código lee `https://docs.pey.mx/openapi.json` y las páginas de webhooks y confirma que nada cambió. Si algo difiere, sigue la documentación y anótalo.
 
 - Base `https://api.pey.mx`, `Authorization: Bearer <PEY_API_KEY>`. No hay sandbox: las pruebas son reales con montos pequeños.
-- `POST /codi/qr`: `amount` (≥ 0; **0 deja que el pagador escriba el monto: nunca lo uses**, el monto siempre es mayor que cero), `concept`, `expiration` (0 o ≥ 360 s; usa **360**), `numRef` (solo dígitos, de 1 a 7: `^[0-9]{1,7}$`), `generateImage` (usa `true`), `bankAccountId` (envíalo siempre, viene de `PEY_BANK_ACCOUNT_ID`), `metadata` (hasta 50 pares, claves de hasta 40 caracteres, valores de hasta 500, solo escalares; vuelven como texto). Responde `id` (IDC), `qrString`, `qrImage` (PNG en base64).
-- `POST /codi/pn` (aviso al celular): `amount` (> 0 y ≤ 1,000,000), `phoneNumber` (10 dígitos), `concept`, `expiration` (mínimo 360, usa 360), `numRef`, `bankAccountId`, `metadata`. Responde `transactionId` y `codiId`.
-- Consultas: `GET /transaction/{id}` (estado `PENDING` o `PAID`, `payableType`: `API_CODI_QR`, `API_CODI_PN`, `PAYMENT_LINK`); `GET /transaction/codi/qr/{id}` (transacciones de un QR; un QR no es una transacción hasta que alguien paga); `GET /transaction/api-key` (80 por página, de la más reciente a la más antigua, con `nextToken`); `GET /transaction/bank-account/{id}` (solo pagadas).
+- `POST /codi/qr`: `amount` (≥ 0; **0 deja que el pagador escriba el monto: nunca lo uses**, el monto siempre es mayor que cero), `concept`, `expiration` (0 o ≥ 360 s; usa **360**), `numRef` (solo dígitos, de 1 a 7: `^[0-9]{1,7}$`), `generateImage` (usa `true`), `metadata` (hasta 50 pares, claves de hasta 40 caracteres, valores de hasta 500, solo escalares; vuelven como texto). **No envíes `bankAccountId` si la llave de pey ya está ligada a una cuenta** (mandarlo con un valor que no corresponde da `BANK_ACCOUNT_NOT_FOUND`; `PEY_BANK_ACCOUNT_ID` es opcional). Responde solo `id` (del QR), `qrString` y `qrImage` (PNG en base64). **No trae `transactionId`**: el id del QR se guarda en el intento; el `transactionId` se registra cuando llega el pago. Verificado con pago real de $0.01 el 14-nov-2026.
+- `POST /codi/pn` (aviso al celular): `amount` (> 0 y ≤ 1,000,000), `phoneNumber` (10 dígitos), `concept`, `expiration` (mínimo 360, usa 360), `numRef`, `metadata`. Misma regla de `bankAccountId` opcional. Guarda el id del aviso CoDi en el intento; el `transactionId` llega con el pago.
+- Consultas: `GET /transaction/{id}` (estado `PENDING` o `PAID`); `GET /transaction/codi/qr/{qrId}` → `{ items, nextToken }` (verificado con pago real: cada item trae `amount`, `amountBreakdown.base`, `currency`, `dateCreated`, `datePaid` en segundos Unix — coinciden porque la transacción se crea al pagar —, `description` = nombre de la cuenta que cobra y **no sirve como concepto**, `id` de la transacción, `metadata`, `paymentMethod`, `status`; **no trae `numRef`**; lista `items` vacía = aún no se pagó; `metadata` igual que el webhook: `accountType`, `bankCode`, `clabe`, `description`, `externalMetadata`, `trackingKey`). Tiempo medido entre el pago y su confirmación en pey: **3 segundos**.
 - Errores 400 documentados: `INVALID_REQUEST`, `INVALID_AMOUNT`, `INVALID_PARAMETER`, `INCOMPLETE_PARAMETERS`, `INVALID_STATE`, `PEY_CONSISTENCY_ERROR`, entre otros; 503 `SERVICE_UNAVAILABLE`. Trátalos sin mostrar el texto interno al usuario.
 - **Webhooks** firmados con Standard Webhooks: verifica sobre el **cuerpo crudo** (texto) con la biblioteca oficial; `webhook-id` es la llave de idempotencia; un webhook por API key; el secreto se muestra una sola vez; el portal tiene «Webhook Logs». Los reintentos **no están documentados**.
 - Payload documentado de `codi.qr.payment_received` y `codi.pn.payment_received`: `amount` (pesos), `apiKeyId`, `bankAccountId`, `codiQrId` (solo QR), `concept`, `datePaid` (Unix en **segundos**), `numRef`, `transactionId` (ULID), `type` y `metadata` con `clabe`, `bankCode`, `accountType`, `trackingKey` (datos del **pagador**) y `externalMetadata` (lo que enviaste al crear el cobro, como texto).
-- Se desconoce: política de reintentos, devoluciones por API, vigencia máxima, si un QR dinámico puede pagarse dos veces y si `numRef` en el aviso es el que enviamos o uno asignado por Banxico. Por eso la identificación del pago **no depende solo de `numRef`** (sección 4.3).
+- Se desconoce: política de reintentos, devoluciones por API, vigencia máxima y si un QR dinámico puede pagarse dos veces. **`numRef` sí viaja al banco del pagador**: con el pago real de $0.01 la referencia del recibo fue la que enviamos (verificado 14-nov-2026). Aun así, la identificación del pago no depende solo de `numRef` (sección 4.3).
 
 ### 4.3 Cómo se liga un pago con su cobro
 
-Al crear un QR o un aviso, envía en `metadata` los pares `intento_id` y `cobro_id` (los identificadores de nuestra base) y en `numRef` el `num_ref` numérico que genera la base. Al recibir el aviso, busca primero por `externalMetadata.intento_id`; si no está, por `numRef`. Registra en la bitácora por cuál vía se encontró. Guarda siempre el payload completo en `eventos_pey`.
+Al crear un QR o un aviso, envía en `metadata` los pares `intento_id` y `cobro_id` y en `numRef` el `num_ref` numérico de la base. Al recibir el aviso, liga el pago con el intento por el **id del QR** (`codiQrId` en el webhook; es el `id` que devolvió `POST /codi/qr`) y por **`numRef`**. Como segunda llave, el `intento_id` enviado en `metadata` regresa en `externalMetadata`. Registra en la bitácora por cuál vía se encontró. Guarda el payload en `eventos_pey` **sin la CLABE completa** (solo últimos 4 dígitos).
 
 ### 4.4 Procesamiento del webhook
 
@@ -61,8 +61,9 @@ Al crear un QR o un aviso, envía en `metadata` los pares `intento_id` y `cobro_
 3. Extrae los datos con una única función `extraerDatosPago(payload)` basada en los campos documentados (sección 4.2). Si un campo falta, el evento queda con resultado `sin_cobro` o `incompleto` y se registra; nunca se descarta en silencio.
 4. Si el payload trae `transactionId`, **confirma con `GET /transaction/{id}`** que el estado sea `PAID` y que el monto coincida antes de conciliar.
 5. Llama a la función SQL `conciliar_pago` (fuente `webhook`). **No reimplementes las reglas de conciliación en TypeScript**: viven en la base, en una sola transacción con su registro en bitácora.
-6. De `metadata` del pagador guarda solo los **últimos cuatro dígitos** de la CLABE y el código de banco, más la clave de rastreo. Nunca la CLABE completa.
+6. Datos del pagador: guarda **banco** (clave de banco), **tipo de cuenta**, **últimos 4 dígitos** de la CLABE y **clave de rastreo**. Nunca la CLABE completa. El nombre del pagador **no llega**. Muéstralos según el rol: el administrador ve todo; el repartidor ve banco, últimos 4, monto y hora.
 7. Marca el evento como procesado con su resultado y responde rápido.
+8. Comprobante para el cliente: pantalla pública con enlace de clave aleatoria larga, sin sesión. Muestra empresa que cobró, últimos 4 de la cuenta destino, folio, piezas, monto, fecha y hora, número de referencia y clave de rastreo. Sin datos del pagador ni del repartidor. Debe decir que es informativo y no es comprobante fiscal.
 
 ### 4.5 Estados y reglas
 
@@ -79,7 +80,7 @@ Cada orden del navegador (crear pedido, crear intento de pago, marcar entregado,
 
 ### 4.7 Conciliación periódica contra pey
 
-Función `conciliar-con-pey` (solo administrador): recorre `GET /transaction/api-key` hasta tres páginas o hasta pasar de las últimas 24 horas, toma las transacciones `PAID` con `payableType` `API_CODI_QR` o `API_CODI_PN` y llama a `conciliar_pago` con fuente `conciliacion`. Lo que ya se procesó por webhook devuelve `ya_procesado` y es normal. Lo que apareció aquí y no llegó por webhook se cuenta y se muestra en el tablero como «recuperado por conciliación». El tablero la dispara cada 60 segundos mientras está abierto y tiene un botón manual.
+Función `conciliar-con-pey` (solo administrador): para cada intento QR con `pey_id` de las últimas 24 horas consulta `GET /transaction/codi/qr/{qrId}` (páginas con `nextToken`). Toma los ítems `PAID` y llama a `conciliar_pago` con fuente `conciliacion`, pasando el id del QR y el `num_ref` del intento (la lista de pey no trae `numRef`). Lista vacía = aún no pagado. Lo ya procesado por webhook devuelve `ya_procesado` y es normal. Lo recuperado aquí se muestra en el tablero. El tablero la dispara cada 60 segundos mientras está abierto y tiene un botón manual.
 
 ### 4.8 Bitácora, integridad y privacidad
 
@@ -717,7 +718,8 @@ Todas responden JSON, validan la entrada con esquema (Zod), limitan el tamaño d
 | --- | --- | --- |
 | `catalogo` | Repartidor | Productos activos con la existencia, lo apartado y lo **disponible** de su camioneta. |
 | `crear-pedido` | Repartidor | Recibe `operacion_id`, alias del cliente y líneas. Llama a `crear_pedido_con_cobro`. Devuelve folio, importe, concepto y vigencia. |
-| `crear-intento-pago` | Repartidor dueño del pedido | Recibe `operacion_id`, `cobro_id`, método (`qr` o `push`) y, para `push`, el celular de 10 dígitos. Llama a `crear_intento`; luego a pey (`/codi/qr` con `generateImage` o `/codi/pn`) con `numRef`, `bankAccountId`, `concept` y `metadata` (`intento_id`, `cobro_id`); guarda con `registrar_intento_pey`. Si pey falla, llama a `marcar_intento_error` y devuelve un mensaje claro. |
+| `crear-intento-pago` | Repartidor dueño del pedido | Recibe `operacion_id`, `cobro_id`, método (`qr` o `push`) y, para `push`, el celular de 10 dígitos. Llama a `crear_intento`; luego a pey (`/codi/qr` con `generateImage` o `/codi/pn`) con `numRef`, `concept` y `metadata` (`intento_id`, `cobro_id`); **sin `bankAccountId` si la llave ya está ligada**. Guarda el **id del QR** (o del aviso) con `registrar_intento_pey`; el `transactionId` llega con el pago. Si pey falla, llama a `marcar_intento_error` y devuelve un mensaje claro. |
+| `comprobante` | Público (sin sesión) | Recibe la clave larga del comprobante. Devuelve empresa, cuenta destino (últimos 4), folio, piezas, monto, fecha, `num_ref` y clave de rastreo. Sin pagador ni repartidor. |
 | `estado-pedido` | Repartidor dueño | Estado actual del pedido, cobro y último intento, con segundos restantes del QR. La pantalla lo consulta cada 3 segundos mientras espera. |
 | `marcar-entregado` | Repartidor dueño | Llama a `marcar_entregado`. |
 | `cancelar-pedido` | Repartidor dueño o administrador | Llama a `cancelar_pedido`. |
@@ -757,7 +759,7 @@ Accesibilidad: contraste suficiente, etiquetas en formularios, navegación con t
 
 ## 9. Seguridad
 
-- Secretos solo como secretos de Supabase y variables de Vercel: `PEY_API_KEY`, `PEY_WEBHOOK_SECRET`, `PEY_BANK_ACCOUNT_ID`, `SITE_URL`. Nunca en el código ni en el repositorio.
+- Secretos solo como secretos de Supabase y variables de Vercel: `PEY_API_KEY`, `PEY_WEBHOOK_SECRET`, `SITE_URL`. `PEY_BANK_ACCOUNT_ID` es opcional (solo si la llave no está ligada). `PEY_CUENTA_ULTIMOS4` y `PEY_EMPRESA_NOMBRE` alimentan el comprobante del cliente. Nunca en el código ni en el repositorio.
 - Encabezados de seguridad y CORS restringido a `SITE_URL`. Nada de `console.log` de payloads completos.
 - Antes de cada push y al terminar, busca en todo el repositorio y su historial cualquier cadena parecida a una llave, token, CLABE o teléfono real y confirma que no hay ninguna.
 
