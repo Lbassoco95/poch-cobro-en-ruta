@@ -9,6 +9,7 @@ const MENSAJES: Record<string, string> = {
   COBRO_YA_PAGADO: "Este cobro ya está pagado.",
   COBRO_NO_VIGENTE: "El cobro ya no está vigente.",
   LIMITE_DE_INTENTOS: "Este cobro ya tuvo cinco intentos.",
+  INTENTO_VIGENTE: "Ya hay un QR vigente para este cobro. Espere a que venza para generar otro.",
   METODO_INVALIDO: "El método de cobro no es válido.",
   PEDIDO_NO_ENCONTRADO: "No encontramos el pedido.",
   PEDIDO_NO_PAGADO: "Solo se entrega un pedido pagado.",
