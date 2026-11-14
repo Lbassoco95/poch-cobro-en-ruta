@@ -12,6 +12,9 @@ major_version = 16
 [functions.webhook-pey]
 verify_jwt = false
 
+[functions.comprobante]
+verify_jwt = false
+
 [functions.quien-soy]
 verify_jwt = true
 

@@ -12,8 +12,10 @@ export type DatosPago = {
   concept: string | null;
   intentoId: string | null;
   cobroId: string | null;
-  via: "intento_id" | "num_ref" | null;
+  codiQrId: string | null;
+  via: "intento_id" | "codi_qr" | "num_ref" | null;
   banco: string | null;
+  tipoCuenta: string | null;
   clabe4: string | null;
   rastreo: string | null;
 };
@@ -30,8 +32,10 @@ function vacio(motivo: "incompleto" | "sin_cobro"): DatosPago {
     concept: null,
     intentoId: null,
     cobroId: null,
+    codiQrId: null,
     via: null,
     banco: null,
+    tipoCuenta: null,
     clabe4: null,
     rastreo: null,
   };
@@ -68,25 +72,55 @@ export function extraerDatosPago(payload: unknown): DatosPago {
   const datePaid = fechaUnix(cuerpo.datePaid);
   const transactionId = typeof cuerpo.transactionId === "string" && cuerpo.transactionId.length > 0
     ? cuerpo.transactionId
+    : typeof cuerpo.id === "string" && cuerpo.id.length > 0 && !("transactionId" in cuerpo)
+    ? cuerpo.id
     : null;
-  const concept = typeof cuerpo.concept === "string" ? cuerpo.concept.slice(0, 200) : null;
+  const concept = typeof cuerpo.concept === "string"
+    ? cuerpo.concept.slice(0, 200)
+    : typeof cuerpo.description === "string"
+    ? cuerpo.description.slice(0, 200)
+    : null;
   const meta = objeto(cuerpo.metadata);
   const externo = objeto(meta.externalMetadata);
   const intentoId = uuidDe(externo.intento_id);
   const cobroId = uuidDe(externo.cobro_id);
   const numRef = typeof cuerpo.numRef === "string" && NUMREF.test(cuerpo.numRef) ? cuerpo.numRef : null;
+  const codiQrId = typeof cuerpo.codiQrId === "string" && cuerpo.codiQrId.length > 0 ? cuerpo.codiQrId : null;
   const banco = meta.bankCode === undefined || meta.bankCode === null ? null : String(meta.bankCode).slice(0, 20);
+  const tipoCuenta = meta.accountType === undefined || meta.accountType === null
+    ? null
+    : String(meta.accountType).slice(0, 40);
   const clabe4 = ultimos4(meta.clabe);
   const rastreo = typeof meta.trackingKey === "string" ? meta.trackingKey.slice(0, 80) : null;
-  const comun = { amount, type, datePaid, transactionId, concept, intentoId, cobroId, numRef, banco, clabe4, rastreo };
+  const via = intentoId ? "intento_id" : codiQrId ? "codi_qr" : numRef ? "num_ref" : null;
+  const comun = {
+    amount,
+    type,
+    datePaid,
+    transactionId,
+    concept,
+    intentoId,
+    cobroId,
+    codiQrId,
+    numRef,
+    banco,
+    tipoCuenta,
+    clabe4,
+    rastreo,
+    via,
+  };
 
-  if (amount === null || !type || !datePaid || !transactionId) {
-    return { ...vacio("incompleto"), ...comun };
+  if (amount === null || !datePaid || !transactionId) {
+    return { ...vacio("incompleto"), ...comun, type, via: null };
   }
-  if (!intentoId && !numRef) {
-    return { ...vacio("sin_cobro"), ...comun };
+  // En conciliación por QR el type puede faltar; el webhook sí lo trae.
+  if (!type && !codiQrId) {
+    return { ...vacio("incompleto"), ...comun, via: null };
   }
-  return { ...comun, completo: true, motivo: null, via: intentoId ? "intento_id" : "num_ref" };
+  if (!intentoId && !codiQrId && !numRef) {
+    return { ...vacio("sin_cobro"), ...comun, via: null };
+  }
+  return { ...comun, completo: true, motivo: null, type: type ?? "codi.qr.payment_received" };
 }
 
 function objeto(valor: unknown): Record<string, unknown> {

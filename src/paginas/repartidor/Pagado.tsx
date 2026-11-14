@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Aviso } from "../../componentes/Marco";
 import { Pie } from "../../componentes/Pie";
 import { useSesion } from "../../contexto/Sesion";
@@ -9,7 +9,14 @@ import { fechaHora, pesos } from "../../lib/formato";
 type Estado = {
   pedido: { folio: number; estado: string; cliente_alias: string };
   cobro: { concepto: string; importe: number; pagado_en: string | null } | null;
-  pago: { clave_rastreo: string | null; pagado_en: string | null } | null;
+  pago: {
+    monto: number | null;
+    clave_rastreo: string | null;
+    pagado_en: string | null;
+    pagador_banco: string | null;
+    pagador_clabe_ultimos4: string | null;
+  } | null;
+  comprobante_clave: string | null;
 };
 
 export default function Pagado() {
@@ -42,6 +49,7 @@ export default function Pagado() {
   }
 
   const entregado = estado?.pedido.estado === "entregado";
+  const enlace = estado?.comprobante_clave ? `/c/${estado.comprobante_clave}` : null;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col bg-jade px-4 py-8 text-white">
@@ -54,22 +62,32 @@ export default function Pagado() {
           <dd className="text-3xl font-semibold">{estado?.pedido.folio ?? "…"}</dd>
         </div>
         <div>
-          <dt className="text-sm text-white/80">Concepto</dt>
-          <dd>{estado?.cobro?.concepto}</dd>
-        </div>
-        <div>
           <dt className="text-sm text-white/80">Importe</dt>
-          <dd className="text-3xl font-semibold">{estado?.cobro ? pesos(estado.cobro.importe) : ""}</dd>
+          <dd className="text-3xl font-semibold">{pesos(estado?.pago?.monto ?? estado?.cobro?.importe ?? 0)}</dd>
         </div>
         <div>
           <dt className="text-sm text-white/80">Fecha y hora</dt>
           <dd>{fechaHora(estado?.pago?.pagado_en ?? estado?.cobro?.pagado_en)}</dd>
         </div>
         <div>
+          <dt className="text-sm text-white/80">Banco del pagador</dt>
+          <dd>{estado?.pago?.pagador_banco ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-sm text-white/80">CLABE del pagador</dt>
+          <dd>····{estado?.pago?.pagador_clabe_ultimos4 ?? "----"}</dd>
+        </div>
+        <div>
           <dt className="text-sm text-white/80">Clave de rastreo</dt>
           <dd>{estado?.pago?.clave_rastreo ?? "En cuanto llegue la confirmación"}</dd>
         </div>
       </dl>
+      {enlace && (
+        <p className="mt-6 text-sm">
+          Comprobante para el cliente:{" "}
+          <Link className="underline" to={enlace}>{window.location.origin}{enlace}</Link>
+        </p>
+      )}
       <div className="mt-8 space-y-3">
         {error && <p role="alert" className="rounded-2xl bg-white px-4 py-3 text-peligro">{error}</p>}
         {!entregado && (

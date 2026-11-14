@@ -11,7 +11,9 @@ export type EntradaConciliacion = {
   intentoId: string | null;
   cobroId: string | null;
   numRef: string | null;
+  peyQr: string | null;
   banco: string | null;
+  tipoCuenta: string | null;
   clabe4: string | null;
   rastreo: string | null;
 };
@@ -36,7 +38,7 @@ export interface BaseAviso {
     cobro: string | null,
     detalle: Record<string, unknown>,
   ): Promise<void>;
-  conciliar(entrada: EntradaConciliacion): Promise<{ resultado: string }>;
+  conciliar(entrada: EntradaConciliacion): Promise<{ resultado: string; comprobanteClave?: string | null }>;
 }
 
 export async function procesarAviso(entrada: {
@@ -78,6 +80,7 @@ export async function procesarAviso(entrada: {
     await entrada.base.bitacora("pey:webhook", "pago_incompleto", null, datos.cobroId, {
       webhook_id: firma.webhookId,
       motivo,
+      codi_qr_id: datos.codiQrId,
     });
     await entrada.base.cerrarEvento(firma.webhookId!, motivo);
     return { estado: 200, cuerpo: { resultado: motivo } };
@@ -98,6 +101,7 @@ export async function procesarAviso(entrada: {
     via: datos.via,
     intento_id: datos.intentoId,
     num_ref: datos.numRef,
+    codi_qr_id: datos.codiQrId,
     webhook_id: firma.webhookId,
   });
   const conciliado = await entrada.base.conciliar({
@@ -108,12 +112,20 @@ export async function procesarAviso(entrada: {
     intentoId: datos.intentoId,
     cobroId: datos.cobroId,
     numRef: datos.numRef,
+    peyQr: datos.codiQrId,
     banco: datos.banco,
+    tipoCuenta: datos.tipoCuenta,
     clabe4: datos.clabe4,
     rastreo: datos.rastreo,
   });
   await entrada.base.cerrarEvento(firma.webhookId!, conciliado.resultado);
-  return { estado: 200, cuerpo: { resultado: conciliado.resultado } };
+  return {
+    estado: 200,
+    cuerpo: {
+      resultado: conciliado.resultado,
+      comprobante_clave: conciliado.comprobanteClave ?? null,
+    },
+  };
 }
 
 function parsear(cuerpo: string): unknown {

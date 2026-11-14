@@ -51,7 +51,8 @@ servir(async (req) => {
         intentoId: intento.id,
         cobroId: cobro.id,
       });
-      await rpc(cliente, "registrar_intento_pey", { p_intento: intento.id, p_pey_id: qr.id, p_codi_id: null });
+      // Guarda el id del QR. El transactionId llega hasta que el cliente paga.
+      await rpc(cliente, "registrar_intento_pey", { p_intento: intento.id, p_pey_id: qr.id, p_codi_id: qr.id });
       const respuesta = { ...resultado, pey_id: qr.id, qr_imagen: qr.qrImage, qr_cadena: qr.qrString };
       await cliente.from("operaciones").update({ resultado: respuesta }).eq("operacion_id", datos.operacion_id);
       return json(200, respuesta);
@@ -64,12 +65,13 @@ servir(async (req) => {
       intentoId: intento.id,
       cobroId: cobro.id,
     });
+    // El transactionId llega con el pago; aquí se guarda el id del aviso CoDi.
     await rpc(cliente, "registrar_intento_pey", {
       p_intento: intento.id,
-      p_pey_id: aviso.transactionId,
-      p_codi_id: aviso.codiId || null,
+      p_pey_id: aviso.id,
+      p_codi_id: aviso.codiId,
     });
-    const respuesta = { ...resultado, pey_id: aviso.transactionId, ya_enviado: true };
+    const respuesta = { ...resultado, pey_id: aviso.id, ya_enviado: true };
     await cliente.from("operaciones").update({ resultado: respuesta }).eq("operacion_id", datos.operacion_id);
     return json(200, respuesta);
   } catch (fallo) {

@@ -20,7 +20,7 @@ servir(async (req) => {
   if (errorLineas) throw new Error(errorLineas.message);
   const { data: cobro, error: errorCobro } = await cliente
     .from("cobros")
-    .select("id, importe, concepto, estado, vigencia_hasta, pagado_en")
+    .select("id, importe, concepto, estado, vigencia_hasta, pagado_en, comprobante_clave")
     .eq("pedido_id", pedido.id)
     .maybeSingle();
   if (errorCobro) throw new Error(errorCobro.message);
@@ -37,7 +37,7 @@ servir(async (req) => {
   const pago = cobro
     ? await cliente
       .from("pagos_confirmados")
-      .select("clave_rastreo, pagado_en, resultado, resolucion, pagador_banco, pagador_clabe_ultimos4")
+      .select("monto, clave_rastreo, pagado_en, resultado, resolucion, pagador_banco, pagador_clabe_ultimos4")
       .eq("cobro_id", cobro.id)
       .or("resultado.eq.aplicado,resolucion.eq.aceptado")
       .limit(1)
@@ -46,5 +46,23 @@ servir(async (req) => {
   if (pago.error) throw new Error(pago.error.message);
   const expira = intento.data?.expira_en ? new Date(intento.data.expira_en).getTime() : 0;
   const segundos = expira ? Math.max(0, Math.floor((expira - Date.now()) / 1000)) : 0;
-  return json(200, { pedido, lineas: lineas ?? [], cobro, intento: intento.data, segundos, pago: pago.data });
+  // El repartidor ve banco, últimos 4, monto y hora. No el tipo de cuenta.
+  const pagoRepartidor = pago.data
+    ? {
+      monto: pago.data.monto,
+      clave_rastreo: pago.data.clave_rastreo,
+      pagado_en: pago.data.pagado_en,
+      pagador_banco: pago.data.pagador_banco,
+      pagador_clabe_ultimos4: pago.data.pagador_clabe_ultimos4,
+    }
+    : null;
+  return json(200, {
+    pedido,
+    lineas: lineas ?? [],
+    cobro,
+    intento: intento.data,
+    segundos,
+    pago: pagoRepartidor,
+    comprobante_clave: cobro?.comprobante_clave ?? null,
+  });
 });

@@ -19,7 +19,7 @@ async function resumen(cliente: Cliente, estado?: string, repartidorId?: string)
     cliente.from("perfiles").select("user_id, nombre").eq("rol", "repartidor").eq("activo", true).order("nombre"),
     cliente.from("pedidos").select("id, folio, cliente_alias, total, estado, creado_en, repartidor_id").order("creado_en", { ascending: false }).limit(200),
     cliente.from("cobros").select("id, pedido_id, importe, estado, actualizado_en, pagado_en"),
-    cliente.from("pagos_confirmados").select("id, cobro_id, monto, resultado, resolucion, fuente, pagado_en, recibido_en, pagador_banco, pagador_clabe_ultimos4, clave_rastreo, nota_resolucion"),
+    cliente.from("pagos_confirmados").select("id, cobro_id, monto, resultado, resolucion, fuente, pagado_en, recibido_en, pagador_banco, pagador_tipo_cuenta, pagador_clabe_ultimos4, clave_rastreo, nota_resolucion"),
     cliente.from("v_stock_repartidor").select("repartidor_id, existencia, apartado"),
   ]);
   for (const consulta of [repartidores, pedidos, cobros, pagos, stock]) {
@@ -106,7 +106,7 @@ async function detalle(cliente: Cliente, pedidoId: string) {
     cliente.from("perfiles").select("nombre").eq("user_id", pedido.repartidor_id).maybeSingle(),
     cliente.from("pedido_lineas").select("producto_id, cantidad, precio_unitario, subtotal").eq("pedido_id", pedido.id),
     cliente.from("productos").select("id, sku, nombre"),
-    cliente.from("cobros").select("id, importe, concepto, estado, vigencia_hasta, pagado_en").eq("pedido_id", pedido.id).maybeSingle(),
+    cliente.from("cobros").select("id, importe, concepto, estado, vigencia_hasta, pagado_en, comprobante_clave").eq("pedido_id", pedido.id).maybeSingle(),
     cliente.from("bitacora").select("id, ocurrio_en, actor, accion, detalle").eq("pedido_id", pedido.id).order("id"),
   ]);
   for (const consulta of [perfil, lineas, productos, cobro, bitacora]) {
@@ -118,7 +118,7 @@ async function detalle(cliente: Cliente, pedidoId: string) {
     : { data: [], error: null };
   if (intentos.error) throw new Error(intentos.error.message);
   const pagos = cobro.data
-    ? await cliente.from("pagos_confirmados").select("id, monto, resultado, resolucion, fuente, pagado_en, pagador_banco, pagador_clabe_ultimos4, clave_rastreo, nota_resolucion").eq("cobro_id", cobro.data.id)
+    ? await cliente.from("pagos_confirmados").select("id, monto, resultado, resolucion, fuente, pagado_en, pagador_banco, pagador_tipo_cuenta, pagador_clabe_ultimos4, clave_rastreo, nota_resolucion").eq("cobro_id", cobro.data.id)
     : { data: [], error: null };
   if (pagos.error) throw new Error(pagos.error.message);
   return {

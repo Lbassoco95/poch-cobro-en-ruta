@@ -3,6 +3,7 @@ import { SesionProvider, useSesion } from "./contexto/Sesion";
 import Detalle from "./paginas/admin/Detalle";
 import Pagos from "./paginas/admin/Pagos";
 import Tablero from "./paginas/admin/Tablero";
+import ComprobanteCliente from "./paginas/ComprobanteCliente";
 import Ingreso from "./paginas/Ingreso";
 import Camioneta from "./paginas/repartidor/Camioneta";
 import Cobrar from "./paginas/repartidor/Cobrar";
@@ -24,6 +25,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Ingreso />} />
+          <Route path="/c/:clave" element={<ComprobanteCliente />} />
           <Route element={<RutaPrivada rol="repartidor" />}>
             <Route path="/repartidor" element={<Pedidos />} />
             <Route path="/repartidor/nuevo" element={<NuevoPedido />} />

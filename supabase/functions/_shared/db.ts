@@ -89,11 +89,14 @@ export function baseAviso(cliente: Cliente): BaseAviso {
         p_banco: entrada.banco,
         p_clabe4: entrada.clabe4,
         p_rastreo: entrada.rastreo,
+        p_tipo_cuenta: entrada.tipoCuenta,
+        p_pey_qr: entrada.peyQr,
       });
-      const resultado = data && typeof data === "object" && "resultado" in data
-        ? String((data as { resultado: unknown }).resultado)
-        : "incompleto";
-      return { resultado };
+      const fila = data && typeof data === "object" ? data as Record<string, unknown> : {};
+      return {
+        resultado: typeof fila.resultado === "string" ? fila.resultado : "incompleto",
+        comprobanteClave: typeof fila.comprobante_clave === "string" ? fila.comprobante_clave : null,
+      };
     },
   };
 }
