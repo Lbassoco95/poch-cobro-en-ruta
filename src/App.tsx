@@ -1,5 +1,8 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { SesionProvider, useSesion } from "./contexto/Sesion";
+import Detalle from "./paginas/admin/Detalle";
+import Pagos from "./paginas/admin/Pagos";
+import Tablero from "./paginas/admin/Tablero";
 import Ingreso from "./paginas/Ingreso";
 import Camioneta from "./paginas/repartidor/Camioneta";
 import Cobrar from "./paginas/repartidor/Cobrar";
@@ -29,7 +32,9 @@ export default function App() {
             <Route path="/repartidor/camioneta" element={<Camioneta />} />
           </Route>
           <Route element={<RutaPrivada rol="admin" />}>
-            <Route path="/admin" element={<p className="p-6 text-lg">El tablero se está armando.</p>} />
+            <Route path="/admin" element={<Tablero />} />
+            <Route path="/admin/pedido/:pedidoId" element={<Detalle />} />
+            <Route path="/admin/pagos" element={<Pagos />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
