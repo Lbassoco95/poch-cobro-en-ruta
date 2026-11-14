@@ -12,7 +12,10 @@ servir(async (req) => {
   for (const ruta of [datos.foto_ruta, datos.firma_ruta]) {
     if (!ruta) continue;
     if (!ruta.startsWith(`evidencias/${datos.pedido_id}/`)) throw new Error("EVIDENCIA_INVALIDA");
-    const { data, error } = await cliente.storage.from("evidencias").list(datos.pedido_id, { limit: 20 });
+    // El objeto se sube como `evidencias/<pedido>/<archivo>` dentro del bucket `evidencias`,
+    // así que la carpeta a listar se deriva de la propia ruta (no solo del id del pedido).
+    const carpeta = ruta.split("/").slice(0, -1).join("/");
+    const { data, error } = await cliente.storage.from("evidencias").list(carpeta, { limit: 20 });
     if (error) throw new Error("EVIDENCIA_NO_ENCONTRADA");
     const nombre = ruta.split("/").pop();
     const archivo = (data ?? []).find((fila) => fila.name === nombre);
