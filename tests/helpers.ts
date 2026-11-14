@@ -6,8 +6,8 @@ import { Webhook } from "standardwebhooks";
 export const SECRETO_LOCAL = "whsec_" + Buffer.from("poch-prueba-local").toString("base64");
 
 export function abortarSiNube(url: string | undefined): void {
-  const valor = url ?? process.env.DATABASE_URL ?? "";
-  if (/supabase\.co/i.test(valor)) {
+  const valor = [url, process.env.DATABASE_URL, process.env.PGHOST].filter(Boolean).join(" ");
+  if (/supabase\.(co|com)|pooler|omtlajyvodeytxdxqnih/i.test(valor)) {
     throw new Error("Las pruebas no pueden apuntar a un proyecto de Supabase en la nube.");
   }
 }
@@ -47,6 +47,7 @@ export async function reiniciarBase(cliente: Client): Promise<void> {
     "supabase/migrations/20261114120000_esquema.sql",
     "supabase/migrations/20261114120100_logica.sql",
     "supabase/migrations/20261114140000_pago_real.sql",
+    "supabase/migrations/20261114190000_intento_unico_vigente.sql",
   ]) {
     await cliente.query(readFileSync(resolve(raiz, archivo), "utf8"));
   }
