@@ -47,6 +47,7 @@ Se liga el pago al intento por el **id del QR** (`codiQrId`) y por **`numRef`** 
 - El navegador solo usa supabase-js para iniciar sesión. Todo lo demás pasa por Edge Functions con el rol de servicio.
 - RLS activo sin políticas; `anon` y `authenticated` no leen ni escriben tablas.
 - Del pagador se guardan banco, tipo de cuenta, últimos 4 de la CLABE y clave de rastreo. Nunca la CLABE completa ni el teléfono del aviso.
+- Un aviso de pey con firma inválida o con fecha fuera de 5 minutos se rechaza con 401 y no se guarda nada.
 - La bitácora solo admite agregar y encadena huellas. `verificar_integridad()` **detecta** alteraciones; no las impide a quien administra la base.
 - Aviso de privacidad (LFPDPPP): esta demostración trata datos ficticios. En un producto real, la empresa es responsable del tratamiento; se recogen solo los datos necesarios para cobrar y conciliar; el cliente puede ejercer derechos ARCO ante la empresa; no se comparten CLABEs completas ni teléfonos.
 
@@ -65,12 +66,12 @@ Resumen vivo en [`docs/PEY-VERIFICADO.md`](docs/PEY-VERIFICADO.md). Verificado c
 ## Instalación
 
 1. Cree un proyecto de Supabase (Postgres 16) y anote la URL y las llaves.
-2. En el editor SQL, corra **en este orden**: Bloque 1, Bloque 2, Bloque 2b (ajuste del pago real), cree los tres usuarios en Authentication, Bloque 3.
+2. En el editor SQL, corra **en este orden**: Bloque 1, Bloque 2, Bloque 2b (ajuste del pago real), Bloque 2c (un solo QR vigente por cobro), cree los tres usuarios en Authentication, Bloque 3.
 3. Usuarios de demostración (contraseña la define usted en el panel): `admin@demo.invalid`, `repartidor1@demo.invalid`, `repartidor2@demo.invalid`.
 4. Despliegue las Edge Functions de `supabase/functions/` y configure los secretos (nombres en `.env.example`).
 5. Registre en pey la URL pública de `webhook-pey`.
 6. Despliegue el frontend (`npm run build`) con `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`.
-7. Copias listas también en `supabase/sql/`.
+7. Copias listas también en `supabase/sql/` (`01-esquema`, `02-logica`, `02b-pago-real`, `02c-intento-unico-vigente`, `datos-demo`). Las mismas migraciones están en `supabase/migrations/`.
 
 ### Variables
 
@@ -762,6 +763,47 @@ grant execute on function public.conciliar_pago(text, text, numeric, timestamptz
 
 ```
 
+### Bloque 2c · un solo QR vigente por cobro
+
+No se genera un QR nuevo mientras el anterior siga vigente (más 30 segundos de tolerancia); la base responde `INTENTO_VIGENTE` y la aplicación muestra un mensaje claro. Archivo: `supabase/sql/02c-intento-unico-vigente.sql`.
+
+```sql
+-- Un solo QR vivo por cobro: no se genera uno nuevo mientras el anterior siga vigente (más 30 s de tolerancia).
+create or replace function public.crear_intento(p_op uuid, p_cobro uuid, p_metodo text, p_actor text)
+returns jsonb language plpgsql set search_path = public, extensions as $$
+declare v_rep jsonb; c public.cobros; v_int uuid; v_ref text; v_exp timestamptz; v_n int; v_res jsonb;
+begin
+  v_rep := public.iniciar_operacion(p_op, 'crear_intento', p_actor);
+  if v_rep is not null then return v_rep; end if;
+  if p_metodo not in ('qr','push') then raise exception 'METODO_INVALIDO'; end if;
+
+  select * into c from public.cobros where id = p_cobro for update;
+  if not found then raise exception 'COBRO_NO_ENCONTRADO'; end if;
+  if c.estado = 'pagado' then raise exception 'COBRO_YA_PAGADO'; end if;
+  if c.estado in ('vencido','cancelado') or c.vigencia_hasta <= now() then raise exception 'COBRO_NO_VIGENTE'; end if;
+  select count(*) into v_n from public.intentos_pago where cobro_id = p_cobro;
+  if v_n >= 5 then raise exception 'LIMITE_DE_INTENTOS'; end if;
+  if exists (select 1 from public.intentos_pago
+             where cobro_id = p_cobro and estado = 'creado'
+               and expira_en + interval '30 seconds' > now()) then
+    raise exception 'INTENTO_VIGENTE';
+  end if;
+
+  v_ref := nextval('public.numref_seq')::text;
+  v_exp := now() + interval '360 seconds';
+  insert into public.intentos_pago (cobro_id, metodo, num_ref, monto, expira_en)
+  values (p_cobro, p_metodo, v_ref, c.importe, v_exp) returning id into v_int;
+  update public.cobros set estado = 'en_proceso', actualizado_en = now() where id = p_cobro;
+
+  perform public.reg_bitacora(p_actor, 'intento_creado', c.pedido_id, p_cobro, p_op,
+    jsonb_build_object('intento_id', v_int, 'metodo', p_metodo, 'num_ref', v_ref));
+  v_res := jsonb_build_object('intento_id', v_int, 'cobro_id', p_cobro, 'num_ref', v_ref,
+                              'monto', c.importe, 'concepto', c.concepto, 'expira_en', v_exp);
+  update public.operaciones set resultado = v_res where operacion_id = p_op;
+  return v_res;
+end $$;
+```
+
 ### Bloque 3 · datos de demostración
 
 Corra **después** de crear los tres usuarios en Authentication.
@@ -803,7 +845,7 @@ select public.reg_bitacora('sembrado', 'datos_demo_cargados', null, null, null, 
 
 ## Cómo correr las pruebas
 
-Solo contra Postgres 16 **local**. Nunca contra un proyecto en la nube.
+Solo contra Postgres 16 **local**. Nunca contra un proyecto en la nube. Las pruebas borran y recrean la base `poch_pruebas` y se niegan a correr si `PGHOST` o `DATABASE_URL` apuntan a Supabase. Si ya tiene otro Postgres en el puerto 5432, use otro puerto con `PGPORT`, y `PGHOST` y `PGUSER` según su instalación.
 
 ```bash
 npm install
