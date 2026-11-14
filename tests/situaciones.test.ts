@@ -4,6 +4,7 @@ import type { Client } from "pg";
 import { procesarAviso } from "../supabase/functions/_shared/procesar-aviso.ts";
 import {
   SECRETO_LOCAL,
+  abortarSiNube,
   clientePrueba,
   firmarAviso,
   payloadQr,
@@ -17,6 +18,7 @@ describe("doce situaciones en Postgres 16 local", () => {
 
   before(async () => {
     const { Client } = await import("pg");
+    abortarSiNube(process.env.DATABASE_URL);
     const bootstrap = new Client({
       host: process.env.PGHOST ?? "/var/run/postgresql",
       database: "postgres",
@@ -196,6 +198,11 @@ describe("doce situaciones en Postgres 16 local", () => {
     const pedido = await crearPedido(demo.repartidor2);
     for (let i = 0; i < 5; i++) {
       await crearIntento(pedido.cobro_id, demo.repartidor2);
+      // Solo se admite un intento vivo por cobro: se vence el anterior antes de pedir otro.
+      await db.query(
+        `update public.intentos_pago set expira_en = now() - interval '1 hour' where cobro_id = $1`,
+        [pedido.cobro_id],
+      );
     }
     await assert.rejects(async () => {
       const op = crypto.randomUUID();
@@ -205,6 +212,24 @@ describe("doce situaciones en Postgres 16 local", () => {
         demo.repartidor2,
       ]);
     }, /LIMITE_DE_INTENTOS/);
+  });
+
+  it("un solo intento vigente por cobro: el segundo se rechaza con INTENTO_VIGENTE", async () => {
+    const pedido = await crearPedido(demo.repartidor1);
+    await crearIntento(pedido.cobro_id);
+    await assert.rejects(async () => {
+      await db.query(`select public.crear_intento($1::uuid, $2::uuid, 'qr', $3)`, [
+        crypto.randomUUID(),
+        pedido.cobro_id,
+        demo.repartidor1,
+      ]);
+    }, /INTENTO_VIGENTE/);
+    await db.query(
+      `update public.intentos_pago set expira_en = now() - interval '1 hour' where cobro_id = $1`,
+      [pedido.cobro_id],
+    );
+    const nuevo = await crearIntento(pedido.cobro_id);
+    assert.ok(nuevo.intento_id);
   });
 
   it("12 alteración de bitácora se detecta", async () => {
@@ -221,7 +246,7 @@ describe("doce situaciones en Postgres 16 local", () => {
   it("anon no puede leer tablas", async () => {
     await assert.rejects(async () => {
       await db.query("set role anon; select count(*) from public.pedidos; reset role;");
-    }, /permission denied|no tiene permiso|permission/i);
+    }, /permission denied|permiso denegado|no tiene permiso|permission/i);
     await db.query("reset role").catch(() => undefined);
   });
 
@@ -255,9 +280,6 @@ describe("doce situaciones en Postgres 16 local", () => {
     });
     const eventos: Array<Record<string, unknown>> = [];
     const base = {
-      async guardarEvento(evento: Record<string, unknown>) {
-        eventos.push({ ...evento, procesado: true });
-      },
       async reclamarEvento(evento: { webhookId: string }) {
         const previo = eventos.find((fila) => fila.webhookId === evento.webhookId);
         if (previo?.procesado) return "procesado" as const;
@@ -323,5 +345,46 @@ describe("doce situaciones en Postgres 16 local", () => {
       confirmar: async () => ({ status: "PAID", amount: Number(pedido.importe) }),
     });
     assert.equal(otra.cuerpo.resultado, "ya_procesado");
+  });
+
+  it("procesarAviso: con firma inválida no toca ningún método de la base y responde 401", async () => {
+    const llamadas: string[] = [];
+    const registrar = (nombre: string) => async () => {
+      llamadas.push(nombre);
+      return "nuevo" as never;
+    };
+    const base = {
+      reclamarEvento: registrar("reclamarEvento"),
+      cerrarEvento: registrar("cerrarEvento"),
+      bitacora: registrar("bitacora"),
+      guardarEvento: registrar("guardarEvento"),
+      conciliar: registrar("conciliar"),
+    };
+    const cuerpo = payloadQr({ amount: 0.01 });
+    const casos: Array<[string, Headers]> = [
+      ["firma incorrecta", new Headers({
+        "webhook-id": "msg_x",
+        "webhook-timestamp": String(Math.floor(Date.now() / 1000)),
+        "webhook-signature": "v1,aaaa",
+      })],
+      ["sin encabezados", new Headers()],
+      ["fecha vieja", firmarAviso(cuerpo, "msg_vieja", new Date(Date.now() - 10 * 60 * 1000))],
+    ];
+    for (const [nombre, encabezados] of casos) {
+      const salida = await procesarAviso({
+        cuerpo,
+        encabezados,
+        secreto: SECRETO_LOCAL,
+        base: base as never,
+        confirmar: async () => {
+          llamadas.push("confirmar");
+          return { status: "PAID", amount: 0.01 };
+        },
+      });
+      assert.equal(salida.estado, 401, nombre);
+    }
+    assert.deepEqual(llamadas, []);
+    const filas = await db.query(`select count(*)::int as n from public.eventos_pey`);
+    assert.equal(filas.rows[0].n, 0);
   });
 });

@@ -1,5 +1,5 @@
-import { extraerDatosPago, payloadSinClabe, redondear } from "./extraer.ts";
-import { huellaCorta, verificarFirma } from "./firma.ts";
+import { extraerDatosPago, redondear } from "./extraer.ts";
+import { verificarFirma } from "./firma.ts";
 
 export type ConfirmacionPago = { status: string; amount: number };
 
@@ -18,17 +18,7 @@ export type EntradaConciliacion = {
   rastreo: string | null;
 };
 
-export type EventoGuardado = {
-  webhookId: string;
-  tipo: string | null;
-  firmaValida: boolean;
-  payload: unknown;
-  procesado: boolean;
-  resultado: string | null;
-};
-
 export interface BaseAviso {
-  guardarEvento(evento: EventoGuardado): Promise<void>;
   reclamarEvento(evento: { webhookId: string; tipo: string | null; payload: unknown }): Promise<"nuevo" | "pendiente" | "procesado">;
   cerrarEvento(webhookId: string, resultado: string): Promise<void>;
   bitacora(
@@ -49,23 +39,10 @@ export async function procesarAviso(entrada: {
   confirmar: (transactionId: string) => Promise<ConfirmacionPago | null>;
 }): Promise<{ estado: number; cuerpo: Record<string, unknown> }> {
   const firma = await verificarFirma(entrada.cuerpo, entrada.encabezados, entrada.secreto);
+  // Firma inválida: se responde 401 y se termina. No se guarda nada (ni evento ni bitácora),
+  // para que quien no tiene el secreto no pueda escribir en la base ni ocupar un webhook-id.
+  if (!firma.ok) return { estado: 401, cuerpo: { error: "No se aceptó el aviso." } };
   const payload = parsear(entrada.cuerpo);
-  if (!firma.ok) {
-    const id = firma.webhookId ?? `sin-encabezado-${await huellaCorta(entrada.cuerpo)}`;
-    await entrada.base.guardarEvento({
-      webhookId: id,
-      tipo: tipoDe(payload),
-      firmaValida: false,
-      payload: payloadSinClabe(payload ?? { cuerpo: "no_json" }),
-      procesado: true,
-      resultado: "firma_invalida",
-    });
-    await entrada.base.bitacora("pey:webhook", "webhook_firma_invalida", null, null, {
-      webhook_id: id,
-      motivo: firma.motivo ?? "firma",
-    });
-    return { estado: 401, cuerpo: { error: "No se aceptó el aviso." } };
-  }
 
   const datos = extraerDatosPago(payload);
   const reclamo = await entrada.base.reclamarEvento({
@@ -134,10 +111,4 @@ function parsear(cuerpo: string): unknown {
   } catch {
     return null;
   }
-}
-
-function tipoDe(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
-  const tipo = (payload as Record<string, unknown>).type;
-  return typeof tipo === "string" ? tipo : null;
 }

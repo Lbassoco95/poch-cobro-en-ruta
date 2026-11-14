@@ -66,8 +66,3 @@ function igual(a: string, b: string): boolean {
   for (let i = 0; i < uno.length; i++) diferencia |= uno[i] ^ dos[i];
   return diferencia === 0;
 }
-
-export async function huellaCorta(cuerpo: string): Promise<string> {
-  const digesto = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(cuerpo));
-  return Array.from(new Uint8Array(digesto), (byte) => byte.toString(16).padStart(2, "0")).join("").slice(0, 32);
-}

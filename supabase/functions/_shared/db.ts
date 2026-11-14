@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { payloadSinClabe } from "./extraer.ts";
-import type { BaseAviso, EntradaConciliacion, EventoGuardado } from "./procesar-aviso.ts";
+import type { BaseAviso, EntradaConciliacion } from "./procesar-aviso.ts";
 
 export type Cliente = SupabaseClient;
 
@@ -33,17 +33,6 @@ export function inicioDelDiaCdmx(): string {
 
 export function baseAviso(cliente: Cliente): BaseAviso {
   return {
-    async guardarEvento(evento: EventoGuardado) {
-      const { error } = await cliente.from("eventos_pey").insert({
-        webhook_id: evento.webhookId,
-        tipo: evento.tipo,
-        firma_valida: evento.firmaValida,
-        payload: payloadSinClabe(evento.payload),
-        procesado: evento.procesado,
-        resultado: evento.resultado,
-      });
-      if (error && error.code !== "23505") throw new Error(error.message);
-    },
     async reclamarEvento(evento) {
       const { error } = await cliente.from("eventos_pey").insert({
         webhook_id: evento.webhookId,
