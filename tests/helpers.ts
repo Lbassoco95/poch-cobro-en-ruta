@@ -7,7 +7,7 @@ export const SECRETO_LOCAL = "whsec_" + Buffer.from("poch-prueba-local").toStrin
 
 export function abortarSiNube(url: string | undefined): void {
   const valor = [url, process.env.DATABASE_URL, process.env.PGHOST].filter(Boolean).join(" ");
-  if (/supabase\.(co|com)|pooler|omtlajyvodeytxdxqnih/i.test(valor)) {
+  if (/supabase\.(co|com)|pooler/i.test(valor)) {
     throw new Error("Las pruebas no pueden apuntar a un proyecto de Supabase en la nube.");
   }
 }
