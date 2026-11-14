@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import type { Client } from "pg";
-import { clientePrueba, reiniciarBase, sembrarDemo } from "./helpers.ts";
+import { abortarSiNube, clientePrueba, reiniciarBase, sembrarDemo } from "./helpers.ts";
 
 describe("ruta de entrega y evidencia", () => {
   let db: Client;
@@ -9,6 +9,7 @@ describe("ruta de entrega y evidencia", () => {
 
   before(async () => {
     const { Client } = await import("pg");
+    abortarSiNube(process.env.DATABASE_URL);
     const bootstrap = new Client({
       host: process.env.PGHOST ?? "/var/run/postgresql",
       database: "postgres",
