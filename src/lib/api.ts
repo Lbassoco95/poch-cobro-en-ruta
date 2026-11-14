@@ -1,4 +1,12 @@
-export class ErrorDeApi extends Error {}
+export class ErrorDeApi extends Error {
+  codigo?: string;
+  segundosRestantes?: number;
+  constructor(mensaje: string, extras?: { codigo?: string; segundosRestantes?: number }) {
+    super(mensaje);
+    this.codigo = extras?.codigo;
+    this.segundosRestantes = extras?.segundosRestantes;
+  }
+}
 
 export async function llamar<T>(nombre: string, token: string, cuerpo?: unknown): Promise<T> {
   const url = import.meta.env.VITE_SUPABASE_URL;
@@ -20,7 +28,10 @@ export async function llamar<T>(nombre: string, token: string, cuerpo?: unknown)
   const data = await respuesta.json().catch(() => ({}));
   if (!respuesta.ok) {
     const mensaje = typeof data?.error === "string" ? data.error : "No se pudo completar la acción.";
-    throw new ErrorDeApi(mensaje);
+    throw new ErrorDeApi(mensaje, {
+      codigo: typeof data?.codigo === "string" ? data.codigo : undefined,
+      segundosRestantes: typeof data?.segundos_restantes === "number" ? data.segundos_restantes : undefined,
+    });
   }
   return data as T;
 }

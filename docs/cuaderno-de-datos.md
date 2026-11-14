@@ -4,7 +4,7 @@ Documento que explica cómo está construido el producto y cómo se comprueba qu
 
 ## 1. Qué es y para quién
 
-Poch es una demostración de cobro en ruta con CoDi para una refaccionaria inventada. El **repartidor** arma pedidos desde su celular, muestra un QR y confirma la entrega. El **administrador** ve el día, concilia con pey y resuelve discrepancias. El **cliente** paga desde su banco y puede abrir un comprobante informativo con un enlace largo, sin iniciar sesión.
+Poch es una demostración de cobro en ruta con CoDi para una refaccionaria inventada. El **repartidor** recorre su ruta del día, cobra con QR CoDi y confirma la entrega con foto de las piezas y firma. El **administrador** crea remisiones, asigna paradas, ve el día, concilia con pey y revisa evidencia. El **cliente** paga desde su banco y puede abrir un comprobante informativo con un enlace largo, sin iniciar sesión. El libro de stock de la camioneta vive en el servidor; el repartidor ya no lo ve en pantalla.
 
 ## 2. Recorrido de un dato
 
@@ -50,8 +50,10 @@ flowchart TB
 | Área | Tablas | Dueño operativo |
 | --- | --- | --- |
 | Identidad | `perfiles` | Administrador |
-| Catálogo y stock | `productos`, `movimientos_stock` | Administrador (carga) / repartidor (apartado y salida) |
+| Catálogo y stock | `productos`, `movimientos_stock` | Administrador (carga) / sistema al entregar (salida) |
+| Ruta y documentos | `rutas`, `pedidos` (con `ruta_id`, `parada`, `orden_compra_ref`, `zona`) | Administrador asigna; repartidor opera su ruta |
 | Pedido y cobro | `pedidos`, `pedido_lineas`, `cobros`, `intentos_pago` | Repartidor dueño |
+| Evidencia | `entregas_evidencia` | Repartidor sube; administrador revisa |
 | Confirmación | `pagos_confirmados`, `eventos_pey` | Función de servicio / administrador al resolver |
 | Prueba | `bitacora`, `operaciones` | Sistema |
 
@@ -60,7 +62,8 @@ flowchart TB
 | Dato | Repartidor | Administrador | Función de servicio | Navegador directo | Comprobante público |
 | --- | --- | --- | --- | --- | --- |
 | Pedidos propios | Sí | Sí | Sí | No | Folio y piezas |
-| Stock de su camioneta | Sí | Resumen | Sí | No | No |
+| Stock de su camioneta | No (solo en servidor) | Resumen | Sí | No | No |
+| Foto y firma de entrega | Sube | Ver (URL 60 s) | Sí | No | No |
 | Banco y últimos 4 del pagador | Sí | Sí | Sí | No | No |
 | Tipo de cuenta del pagador | No | Sí | Sí | No | No |
 | CLABE completa | No | No | No (se reduce a 4) | No | No |

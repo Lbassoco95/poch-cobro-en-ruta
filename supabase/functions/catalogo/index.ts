@@ -3,13 +3,16 @@ import { json, servir } from "../_shared/http.ts";
 
 servir(async (req) => {
   if (req.method !== "GET" && req.method !== "POST") return json(405, { error: "Método no permitido." });
-  const { cliente, perfil } = await exigir(req, ["repartidor"]);
+  const { cliente, perfil } = await exigir(req, ["repartidor", "admin"]);
   const { data: productos, error } = await cliente
     .from("productos")
     .select("id, sku, nombre, precio")
     .eq("activo", true)
     .order("nombre");
   if (error) throw new Error(error.message);
+  if (perfil.rol === "admin") {
+    return json(200, { productos: productos ?? [] });
+  }
   const { data: stock, error: errorStock } = await cliente
     .from("v_stock_repartidor")
     .select("producto_id, existencia, apartado")

@@ -15,14 +15,17 @@ type Cliente = Awaited<ReturnType<typeof exigir>>["cliente"];
 
 async function resumen(cliente: Cliente, estado?: string, repartidorId?: string) {
   const desde = inicioDelDiaCdmx();
-  const [repartidores, pedidos, cobros, pagos, stock] = await Promise.all([
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
+  const [repartidores, pedidos, cobros, pagos, rutas, evidencias, reordenes] = await Promise.all([
     cliente.from("perfiles").select("user_id, nombre").eq("rol", "repartidor").eq("activo", true).order("nombre"),
-    cliente.from("pedidos").select("id, folio, cliente_alias, total, estado, creado_en, repartidor_id").order("creado_en", { ascending: false }).limit(200),
+    cliente.from("pedidos").select("id, folio, cliente_alias, total, estado, creado_en, repartidor_id, ruta_id, tipo_documento, folio_documento, orden_compra_ref, zona, parada").order("creado_en", { ascending: false }).limit(300),
     cliente.from("cobros").select("id, pedido_id, importe, estado, actualizado_en, pagado_en"),
     cliente.from("pagos_confirmados").select("id, cobro_id, monto, resultado, resolucion, fuente, pagado_en, recibido_en, pagador_banco, pagador_tipo_cuenta, pagador_clabe_ultimos4, clave_rastreo, nota_resolucion"),
-    cliente.from("v_stock_repartidor").select("repartidor_id, existencia, apartado"),
+    cliente.from("rutas").select("id, nombre, fecha, estado, repartidor_id, creado_en").eq("fecha", hoy).order("creado_en", { ascending: false }),
+    cliente.from("entregas_evidencia").select("pedido_id, recibe_nombre, requiere_revision, revisada, entregado_en, foto_ruta, firma_ruta").eq("requiere_revision", true).eq("revisada", false),
+    cliente.from("bitacora").select("id, ocurrio_en, actor, accion, detalle").eq("accion", "ruta_reordenada").gte("ocurrio_en", desde).order("id", { ascending: false }).limit(20),
   ]);
-  for (const consulta of [repartidores, pedidos, cobros, pagos, stock]) {
+  for (const consulta of [repartidores, pedidos, cobros, pagos, rutas, evidencias, reordenes]) {
     if (consulta.error) throw new Error(consulta.error.message);
   }
   const nombres = new Map((repartidores.data ?? []).map((fila) => [fila.user_id, fila.nombre]));
@@ -33,6 +36,7 @@ async function resumen(cliente: Cliente, estado?: string, repartidorId?: string)
     vencido: 0,
     por_resolver: 0,
     recuperados: 0,
+    devuelto: 0,
   };
   for (const pago of pagos.data ?? []) {
     const aplicado = pago.resultado === "aplicado" || pago.resolucion === "aceptado";
@@ -46,25 +50,11 @@ async function resumen(cliente: Cliente, estado?: string, repartidorId?: string)
     }
     if (cobro.estado === "vencido" && cobro.actualizado_en >= desde) indicadores.vencido += 1;
   }
-  const disponiblePorRepartidor = new Map<string, number>();
-  for (const fila of stock.data ?? []) {
-    const disponible = Number(fila.existencia) - Number(fila.apartado);
-    disponiblePorRepartidor.set(fila.repartidor_id, (disponiblePorRepartidor.get(fila.repartidor_id) ?? 0) + disponible);
+  for (const pedido of pedidos.data ?? []) {
+    if (pedido.estado === "devuelto" && pedido.creado_en >= desde) {
+      indicadores.devuelto = redondear(indicadores.devuelto + Number(pedido.total));
+    }
   }
-  const resumenRepartidores = (repartidores.data ?? []).map((repartidor) => {
-    const suyos = (pedidos.data ?? []).filter((pedido) => pedido.repartidor_id === repartidor.user_id && pedido.creado_en >= desde);
-    const cobrado = suyos.reduce((suma, pedido) => {
-      const cobro = cobroPorPedido.get(pedido.id);
-      return cobro && (cobro.estado === "pagado") ? suma + Number(cobro.importe) : suma;
-    }, 0);
-    return {
-      repartidor_id: repartidor.user_id,
-      nombre: repartidor.nombre,
-      pedidos: suyos.length,
-      cobrado: redondear(cobrado),
-      stock_disponible: disponiblePorRepartidor.get(repartidor.user_id) ?? 0,
-    };
-  });
   const lista = (pedidos.data ?? [])
     .filter((pedido) => !estado || pedido.estado === estado)
     .filter((pedido) => !repartidorId || pedido.repartidor_id === repartidorId)
@@ -85,11 +75,51 @@ async function resumen(cliente: Cliente, estado?: string, repartidorId?: string)
         repartidor: pedido ? nombres.get(pedido.repartidor_id) ?? "Repartidor" : null,
       };
     });
+  const entregasPorRevisar = (evidencias.data ?? []).map((ev) => {
+    const pedido = (pedidos.data ?? []).find((p) => p.id === ev.pedido_id);
+    return {
+      ...ev,
+      folio: pedido?.folio ?? null,
+      cliente: pedido?.cliente_alias ?? null,
+      repartidor: pedido ? nombres.get(pedido.repartidor_id) ?? "Repartidor" : null,
+      total: pedido?.total ?? null,
+    };
+  });
+  const rutasDia = (rutas.data ?? []).map((ruta) => ({
+    ...ruta,
+    repartidor: nombres.get(ruta.repartidor_id) ?? "Repartidor",
+    paradas: (pedidos.data ?? [])
+      .filter((p) => p.ruta_id === ruta.id)
+      .sort((a, b) => Number(a.parada ?? 0) - Number(b.parada ?? 0))
+      .map((p) => ({
+        id: p.id,
+        parada: p.parada,
+        cliente: p.cliente_alias,
+        zona: p.zona,
+        estado: p.estado,
+        total: p.total,
+        tipo: p.tipo_documento,
+        folio_documento: p.folio_documento,
+        orden_compra: p.orden_compra_ref,
+      })),
+  }));
   return {
     indicadores,
-    repartidores: resumenRepartidores,
+    repartidores: (repartidores.data ?? []).map((r) => ({
+      repartidor_id: r.user_id,
+      nombre: r.nombre,
+    })),
     pedidos: lista,
     discrepancias,
+    entregas_por_revisar: entregasPorRevisar,
+    rutas: rutasDia,
+    reordenamientos: (reordenes.data ?? []).map((fila) => ({
+      id: fila.id,
+      ocurrio_en: fila.ocurrio_en,
+      actor: fila.actor,
+      repartidor: nombres.get(fila.actor) ?? fila.actor,
+      detalle: limpiar(fila.detalle),
+    })),
     generado_en: new Date().toISOString(),
   };
 }
@@ -97,19 +127,20 @@ async function resumen(cliente: Cliente, estado?: string, repartidorId?: string)
 async function detalle(cliente: Cliente, pedidoId: string) {
   const { data: pedido, error } = await cliente
     .from("pedidos")
-    .select("id, folio, cliente_alias, total, estado, creado_en, actualizado_en, repartidor_id")
+    .select("id, folio, cliente_alias, total, estado, creado_en, actualizado_en, repartidor_id, ruta_id, tipo_documento, folio_documento, orden_compra_ref, zona, parada")
     .eq("id", pedidoId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!pedido) throw new Error("PEDIDO_NO_ENCONTRADO");
-  const [perfil, lineas, productos, cobro, bitacora] = await Promise.all([
+  const [perfil, lineas, productos, cobro, bitacora, evidencia] = await Promise.all([
     cliente.from("perfiles").select("nombre").eq("user_id", pedido.repartidor_id).maybeSingle(),
     cliente.from("pedido_lineas").select("producto_id, cantidad, precio_unitario, subtotal").eq("pedido_id", pedido.id),
     cliente.from("productos").select("id, sku, nombre"),
     cliente.from("cobros").select("id, importe, concepto, estado, vigencia_hasta, pagado_en, comprobante_clave").eq("pedido_id", pedido.id).maybeSingle(),
     cliente.from("bitacora").select("id, ocurrio_en, actor, accion, detalle").eq("pedido_id", pedido.id).order("id"),
+    cliente.from("entregas_evidencia").select("recibe_nombre, foto_ruta, firma_ruta, excepcion, nota, requiere_revision, revisada, entregado_en").eq("pedido_id", pedido.id).maybeSingle(),
   ]);
-  for (const consulta of [perfil, lineas, productos, cobro, bitacora]) {
+  for (const consulta of [perfil, lineas, productos, cobro, bitacora, evidencia]) {
     if (consulta.error) throw new Error(consulta.error.message);
   }
   const nombres = new Map((productos.data ?? []).map((producto) => [producto.id, producto]));
@@ -127,6 +158,18 @@ async function detalle(cliente: Cliente, pedidoId: string) {
     cobro: cobro.data,
     intentos: intentos.data ?? [],
     pagos: pagos.data ?? [],
+    evidencia: evidencia.data
+      ? {
+        recibe_nombre: evidencia.data.recibe_nombre,
+        tiene_foto: Boolean(evidencia.data.foto_ruta),
+        tiene_firma: Boolean(evidencia.data.firma_ruta),
+        excepcion: evidencia.data.excepcion,
+        nota: evidencia.data.nota,
+        requiere_revision: evidencia.data.requiere_revision,
+        revisada: evidencia.data.revisada,
+        entregado_en: evidencia.data.entregado_en,
+      }
+      : null,
     bitacora: (bitacora.data ?? []).map((fila) => ({ ...fila, detalle: limpiar(fila.detalle) })),
   };
 }

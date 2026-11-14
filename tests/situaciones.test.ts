@@ -174,11 +174,19 @@ describe("doce situaciones en Postgres 16 local", () => {
       [`tx_ent_${pedido.folio}`, pedido.importe, intento.intento_id, pedido.cobro_id, intento.num_ref, intento.pey_qr],
     );
     const op = crypto.randomUUID();
-    await db.query(`select public.marcar_entregado($1::uuid, $2::uuid, $3::uuid)`, [
-      op,
-      pedido.pedido_id,
-      demo.repartidor1,
-    ]);
+    await db.query(
+      `select public.marcar_entregado($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, null, null, null, null)`,
+      [
+        op,
+        pedido.pedido_id,
+        demo.repartidor1,
+        "Cliente Demo",
+        `evidencias/${pedido.pedido_id}/foto.jpg`,
+        "a".repeat(64),
+        `evidencias/${pedido.pedido_id}/firma.png`,
+        "b".repeat(64),
+      ],
+    );
     const despues = await db.query(
       `select coalesce(sum(existencia - apartado),0)::int as d from public.v_stock_repartidor
        where repartidor_id = $1 and producto_id = $2`,
@@ -198,9 +206,10 @@ describe("doce situaciones en Postgres 16 local", () => {
     const pedido = await crearPedido(demo.repartidor2);
     for (let i = 0; i < 5; i++) {
       await crearIntento(pedido.cobro_id, demo.repartidor2);
-      // Solo se admite un intento vivo por cobro: se vence el anterior antes de pedir otro.
+      // Vence el QR vivo (+30 s) para poder crear el siguiente intento
       await db.query(
-        `update public.intentos_pago set expira_en = now() - interval '1 hour' where cobro_id = $1`,
+        `update public.intentos_pago set expira_en = now() - interval '2 minutes'
+         where cobro_id = $1 and estado = 'creado'`,
         [pedido.cobro_id],
       );
     }

@@ -55,7 +55,12 @@ export function servir(manejador: (req: Request) => Promise<Response>): void {
       return new Response(respuesta.body, { status: respuesta.status, headers });
     } catch (error) {
       const traducido = responderError(error);
-      return json(traducido.estado, { error: traducido.error }, origen);
+      const cuerpo: Record<string, unknown> = { error: traducido.error };
+      if (traducido.segundos_restantes !== undefined) {
+        cuerpo.segundos_restantes = traducido.segundos_restantes;
+        cuerpo.codigo = "INTENTO_VIGENTE";
+      }
+      return json(traducido.estado, cuerpo, origen);
     }
   });
 }

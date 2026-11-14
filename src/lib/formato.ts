@@ -15,6 +15,7 @@ export function fechaHora(valor: string | null | undefined): string {
 }
 
 const ESTADOS: Record<string, string> = {
+  pendiente: "Pendiente",
   por_cobrar: "Por cobrar",
   pagado: "Pagado",
   entregado: "Entregado",
@@ -36,6 +37,11 @@ const ESTADOS: Record<string, string> = {
   devuelto: "Devuelto",
   qr: "Código QR",
   push: "Aviso al celular",
+  remision: "Remisión",
+  nota_venta: "Nota de venta",
+  orden_compra: "Orden de compra",
+  abierta: "Abierta",
+  cerrada: "Cerrada",
 };
 
 export function etiqueta(estado: string | null | undefined): string {

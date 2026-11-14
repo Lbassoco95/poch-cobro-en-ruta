@@ -48,6 +48,8 @@ export async function reiniciarBase(cliente: Client): Promise<void> {
     "supabase/migrations/20261114120100_logica.sql",
     "supabase/migrations/20261114140000_pago_real.sql",
     "supabase/migrations/20261114190000_intento_unico_vigente.sql",
+    "supabase/migrations/20261114200000_ruta_entrega.sql",
+    "supabase/migrations/20261114210000_reorden_paradas_orden_compra.sql",
   ]) {
     await cliente.query(readFileSync(resolve(raiz, archivo), "utf8"));
   }
