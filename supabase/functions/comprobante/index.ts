@@ -28,7 +28,7 @@ servir(async (req) => {
     return json(404, { error: "No se encontró el comprobante." });
   }
 
-  const [{ data: pedido }, { data: lineas }, { data: pago }, { data: intento }] = await Promise.all([
+  const [{ data: pedido }, { data: lineas }, { data: pago }, { data: intento }, { data: entrega }] = await Promise.all([
     cliente.from("pedidos").select("folio").eq("id", cobro.pedido_id).maybeSingle(),
     cliente.from("pedido_lineas").select("cantidad, subtotal, producto_id").eq("pedido_id", cobro.pedido_id),
     cliente
@@ -45,6 +45,11 @@ servir(async (req) => {
       .eq("estado", "pagado")
       .order("pagado_en", { ascending: false })
       .limit(1)
+      .maybeSingle(),
+    cliente
+      .from("entregas_evidencia")
+      .select("recibe_nombre, entregado_en")
+      .eq("pedido_id", cobro.pedido_id)
       .maybeSingle(),
   ]);
 
@@ -71,6 +76,14 @@ servir(async (req) => {
       cantidad: linea.cantidad,
       subtotal: Number(linea.subtotal),
     })),
+    entrega: entrega
+      ? {
+        fecha: entrega.entregado_en,
+        recibe: entrega.recibe_nombre,
+        leyenda: "Entrega registrada con evidencia",
+      }
+      : null,
     aviso: "Este documento es informativo. No es un comprobante fiscal.",
   });
 });
+
