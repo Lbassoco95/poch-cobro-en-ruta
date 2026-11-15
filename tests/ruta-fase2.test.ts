@@ -289,6 +289,90 @@ describe("Fase 2: casos de revisión (ruta, evidencia, reorden, ajenos)", () => 
     );
   });
 
+  it("QR vencido: en la tolerancia de 30 s no se reabre; después sí, se genera otro QR, se paga y se entrega", async () => {
+    const ruta = await nuevaRuta(demo.repartidor1, "Ciclo QR");
+    const doc = await nuevoDocumento(ruta, "Q-1");
+    const cobro = await abrir(doc.pedido_id, demo.repartidor1);
+    const crear = (repartidor = demo.repartidor1) =>
+      db.query(`select public.crear_intento($1::uuid,$2::uuid,'qr',$3) as r`, [uuid(), cobro.cobro_id, repartidor]);
+    const primero = (await crear()).rows[0].r;
+    await db.query(`select public.registrar_intento_pey($1::uuid,'qr_p1','qr_p1')`, [primero.intento_id]);
+
+    // QR vivo: otro QR se rechaza.
+    await assert.rejects(() => crear(), /INTENTO_VIGENTE/);
+
+    // Bug reproducido: la vigencia del cobro ya pasó y el QR venció hace 10 s, pero sigue la tolerancia de 30 s.
+    await db.query(`update public.cobros set vigencia_hasta = now() - interval '5 seconds' where id = $1`, [cobro.cobro_id]);
+    await db.query(`update public.intentos_pago set expira_en = now() - interval '10 seconds' where id = $1`, [primero.intento_id]);
+    await db.query(`select public.expirar_vencidos()`);
+    const enGracia = await db.query(
+      `select p.estado as pedido, c.estado as cobro from public.pedidos p join public.cobros c on c.pedido_id = p.id where p.id = $1`,
+      [doc.pedido_id],
+    );
+    assert.equal(enGracia.rows[0].pedido, "por_cobrar", "dentro de la tolerancia el documento sigue por cobrar");
+    await assert.rejects(
+      () => db.query(`select public.abrir_cobro($1::uuid,$2::uuid,$3::uuid,6)`, [uuid(), doc.pedido_id, demo.repartidor1]),
+      /DOCUMENTO_NO_PENDIENTE/,
+    );
+    await assert.rejects(() => crear(), /COBRO_NO_VIGENTE/);
+
+    // Pasada la tolerancia, el cobro vence, el documento vuelve a pendiente y se puede reabrir.
+    await db.query(`update public.intentos_pago set expira_en = now() - interval '40 seconds' where id = $1`, [primero.intento_id]);
+    await db.query(`select public.expirar_vencidos()`);
+    const vencido = await db.query(
+      `select p.estado as pedido, c.estado as cobro from public.pedidos p join public.cobros c on c.pedido_id = p.id where p.id = $1`,
+      [doc.pedido_id],
+    );
+    assert.deepEqual({ ...vencido.rows[0] }, { pedido: "pendiente", cobro: "vencido" });
+    const reabierto = await db.query(`select public.abrir_cobro($1::uuid,$2::uuid,$3::uuid,6) as r`, [
+      uuid(),
+      doc.pedido_id,
+      demo.repartidor1,
+    ]);
+    assert.equal(reabierto.rows[0].r.reabierto, true);
+    assert.equal(reabierto.rows[0].r.cobro_id, cobro.cobro_id);
+
+    // Segundo QR, distinto del primero, con monto igual al importe del documento y numRef válido.
+    const segundo = (await crear()).rows[0].r;
+    assert.notEqual(segundo.intento_id, primero.intento_id);
+    assert.notEqual(segundo.num_ref, primero.num_ref);
+    assert.match(String(segundo.num_ref), /^[0-9]{1,7}$/);
+    const importe = (await db.query(`select importe from public.cobros where id = $1`, [cobro.cobro_id])).rows[0].importe;
+    assert.equal(Number(segundo.monto), Number(importe));
+    assert.ok(Number(segundo.monto) > 0);
+    await db.query(`select public.registrar_intento_pey($1::uuid,'qr_p2','qr_p2')`, [segundo.intento_id]);
+
+    // Pago por el segundo QR: se aplica; el primero ya no pesa.
+    const pago = await db.query(
+      `select public.conciliar_pago('webhook',$1,$2,now(),$3::uuid,$4::uuid,$5,'012','0001','rastreo','40','qr_p2') as r`,
+      [`tx_ciclo_${doc.pedido_id.slice(0, 8)}`, Number(segundo.monto), segundo.intento_id, cobro.cobro_id, segundo.num_ref],
+    );
+    assert.equal(pago.rows[0].r.resultado, "aplicado");
+    const pagado = await db.query(`select estado from public.pedidos where id = $1`, [doc.pedido_id]);
+    assert.equal(pagado.rows[0].estado, "pagado");
+
+    // Entrega con foto y firma.
+    await entregar(doc.pedido_id, demo.repartidor1);
+    const entregado = await db.query(`select estado from public.pedidos where id = $1`, [doc.pedido_id]);
+    assert.equal(entregado.rows[0].estado, "entregado");
+    const integridad = await db.query(`select * from public.verificar_integridad()`);
+    assert.ok(integridad.rows.every((f) => f.ok), "integridad tras el ciclo completo");
+  });
+
+  it("el límite de 5 intentos cuenta desde la última apertura del cobro", async () => {
+    const ruta = await nuevaRuta(demo.repartidor2, "Límite");
+    const doc = await nuevoDocumento(ruta, "L-1");
+    const cobro = await abrir(doc.pedido_id, demo.repartidor2);
+    for (let i = 0; i < 5; i++) {
+      await db.query(`select public.crear_intento($1::uuid,$2::uuid,'qr',$3)`, [uuid(), cobro.cobro_id, demo.repartidor2]);
+      await db.query(`update public.intentos_pago set expira_en = now() - interval '1 hour' where cobro_id = $1`, [cobro.cobro_id]);
+    }
+    await assert.rejects(
+      () => db.query(`select public.crear_intento($1::uuid,$2::uuid,'qr',$3)`, [uuid(), cobro.cobro_id, demo.repartidor2]),
+      /LIMITE_DE_INTENTOS/,
+    );
+  });
+
   it("al final, verificar_integridad() da las cinco pruebas en verde", async () => {
     const integridad = await db.query(`select * from public.verificar_integridad()`);
     assert.equal(integridad.rows.length, 5);
