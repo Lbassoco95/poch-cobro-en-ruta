@@ -2,6 +2,7 @@ import { asegurarPedido, exigir } from "../_shared/auth.ts";
 import { rpc } from "../_shared/db.ts";
 import { esquemaIntento, validar } from "../_shared/esquemas.ts";
 import { json, leerJson, servir } from "../_shared/http.ts";
+import { operacionDerivada, planearIntento } from "../_shared/intento.ts";
 import { crearAviso, crearQr } from "../_shared/pey.ts";
 
 servir(async (req) => {
@@ -10,11 +11,47 @@ servir(async (req) => {
   const datos = validar(esquemaIntento, await leerJson(req));
   const { data: cobro, error } = await cliente
     .from("cobros")
-    .select("id, pedido_id, importe, concepto")
+    .select("id, pedido_id, importe, concepto, estado, creado_en, reabierto_en")
     .eq("id", datos.cobro_id)
     .maybeSingle();
   if (error || !cobro) throw new Error("COBRO_NO_ENCONTRADO");
-  await asegurarPedido(cliente, cobro.pedido_id, perfil);
+  const pedidoActual = await asegurarPedido(cliente, cobro.pedido_id, perfil);
+
+  // Un reintento de la misma orden devuelve lo ya guardado: no se vuelve a planear.
+  const { data: previa } = await cliente
+    .from("operaciones")
+    .select("operacion_id")
+    .eq("operacion_id", datos.operacion_id)
+    .maybeSingle();
+  if (!previa) {
+    const [vivos, desdeApertura] = await Promise.all([
+      cliente.from("intentos_pago").select("expira_en").eq("cobro_id", cobro.id).eq("estado", "creado"),
+      cliente
+        .from("intentos_pago")
+        .select("id", { count: "exact", head: true })
+        .eq("cobro_id", cobro.id)
+        .gte("creado_en", cobro.reabierto_en ?? cobro.creado_en),
+    ]);
+    if (vivos.error || desdeApertura.error) throw new Error("COBRO_NO_ENCONTRADO");
+    const plan = planearIntento({
+      pedidoEstado: pedidoActual.estado,
+      cobroEstado: cobro.estado,
+      intentosVivos: (vivos.data ?? []).map((fila) => String(fila.expira_en)),
+      intentosDesdeApertura: desdeApertura.count ?? 0,
+    });
+    // Respeta INTENTO_VIGENTE (QR vivo + 30 s) con los segundos exactos que faltan.
+    if (plan.accion === "esperar") throw new Error(`INTENTO_VIGENTE:${plan.segundos}`);
+    if (plan.accion === "limite") throw new Error("LIMITE_DE_INTENTOS");
+    if (plan.accion === "reabrir") {
+      // Cobro vencido y documento pendiente: se reabre aquí mismo y se sigue con el nuevo intento.
+      await rpc(cliente, "abrir_cobro", {
+        p_op: await operacionDerivada(datos.operacion_id, "abrir"),
+        p_pedido: cobro.pedido_id,
+        p_repartidor: perfil.user_id,
+        p_vigencia_min: 6,
+      });
+    }
+  }
 
   const resultado = objeto(await rpc(cliente, "crear_intento", {
     p_op: datos.operacion_id,
