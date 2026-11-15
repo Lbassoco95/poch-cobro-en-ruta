@@ -9,6 +9,7 @@ import { Insignia } from "../../componentes/Insignia";
 import { Vidrio } from "../../componentes/Vidrio";
 import { useSesion } from "../../contexto/Sesion";
 import { ErrorDeApi, llamar } from "../../lib/api";
+import { supabase } from "../../lib/supabase";
 import { comprimirFoto, huellaSha256 } from "../../lib/evidencia";
 import { pesos } from "../../lib/formato";
 import { textoPiezas } from "../../lib/parada";
@@ -34,6 +35,7 @@ export default function Entrega() {
   const navegar = useNavigate();
   const firmaRef = useRef<FirmaControl>(null);
   const operacion = useRef(crypto.randomUUID());
+  const campoNombre = useRef<HTMLInputElement>(null);
   const [pedido, setPedido] = useState<EstadoPedido["pedido"] | null>(null);
   const [piezas, setPiezas] = useState(0);
   const [recibe, setRecibe] = useState("");
@@ -78,29 +80,39 @@ export default function Entrega() {
     }
   }
 
-  const faltaFoto = excepcion !== "sin_foto" && !foto;
-  const faltaFirma = excepcion !== "cliente_no_firma" && !hayFirma;
+  // Sin excepción hacen falta foto, firma y nombre. Con excepción bastan el nombre y una nota de 5 caracteres.
+  const conExcepcion = Boolean(excepcion);
+  const faltaFoto = !conExcepcion && !foto;
+  const faltaFirma = !conExcepcion && !hayFirma;
   const faltaNombre = recibe.trim().length < 1;
-  const faltaNota = Boolean(excepcion) && nota.trim().length < 5;
+  const faltaNota = conExcepcion && nota.trim().length < 5;
   const listo = !faltaFoto && !faltaFirma && !faltaNombre && !faltaNota;
   const faltantes = [
-    faltaFoto ? "la foto" : "",
-    faltaFirma ? "la firma" : "",
-    faltaNombre ? "el nombre" : "",
-    faltaNota ? "la nota de la excepción" : "",
+    faltaFoto ? "Falta la foto" : "",
+    faltaFirma ? "Falta la firma" : "",
+    faltaNombre ? "Falta el nombre" : "",
+    faltaNota ? "Falta la nota (mínimo 5 caracteres)" : "",
   ].filter(Boolean);
 
-  async function subir(blob: Blob, url: string, token: string, tipo: string) {
-    const respuesta = await fetch(url, {
-      method: "PUT",
-      headers: {
-        "content-type": tipo,
-        "x-upsert": "true",
-        authorization: `Bearer ${token}`,
-      },
-      body: blob,
-    });
-    if (!respuesta.ok) throw new ErrorDeApi("No se pudo subir la evidencia.");
+  // Al llegar al paso del nombre (ya hay foto y firma) el cursor pasa al campo.
+  useEffect(() => {
+    if (foto && hayFirma && recibe.length === 0) campoNombre.current?.focus();
+  }, [foto, hayFirma, recibe.length]);
+
+  function mensajeSubida(texto: string, que: "foto" | "firma"): string {
+    if (/exceed|size|large|too big|413/i.test(texto)) return `La ${que} pesa demasiado para subirla. Tome otra con menos resolución.`;
+    if (/mime|type|415/i.test(texto)) return `La ${que} no es una imagen válida.`;
+    if (/token|jwt|expired|unauthor|forbidden|401|403/i.test(texto)) return "El permiso para subir venció. Vuelva a pulsar «Confirmar entrega».";
+    return `No se pudo subir la ${que}. Revise su conexión e intente de nuevo.`;
+  }
+
+  // Subida con el cliente oficial y la URL firmada que entrega la función; el navegador no escribe tablas.
+  async function subir(blob: Blob, ruta: string, token: string, tipo: string, que: "foto" | "firma") {
+    if (!supabase) throw new ErrorDeApi("La conexión con el servidor no está configurada.");
+    const { error: fallo } = await supabase.storage
+      .from("evidencias")
+      .uploadToSignedUrl(ruta, token, blob, { contentType: tipo, upsert: true });
+    if (fallo) throw new ErrorDeApi(mensajeSubida(String(fallo.message ?? ""), que));
   }
 
   async function enviar() {
@@ -113,18 +125,20 @@ export default function Entrega() {
       let fotoHash: string | null = null;
       let firmaRuta: string | null = null;
       let firmaHash: string | null = null;
-      if (excepcion !== "sin_foto") {
-        if (!foto) throw new ErrorDeApi("Tome una foto de las piezas entregadas.");
+      // Se sube lo que haya: sin excepción son obligatorias; con excepción pueden faltar.
+      if (foto) {
         fotoHash = await huellaSha256(foto);
-        await subir(foto, urls.foto.url, urls.foto.token, "image/jpeg");
+        await subir(foto, urls.foto.ruta, urls.foto.token, "image/jpeg", "foto");
         fotoRuta = urls.foto.ruta;
       }
-      if (excepcion !== "cliente_no_firma") {
-        const firma = await firmaRef.current?.exportar();
-        if (!firma) throw new ErrorDeApi("Falta la firma de quien recibe.");
+      const firma = hayFirma ? await firmaRef.current?.exportar() : null;
+      if (firma) {
         firmaHash = await huellaSha256(firma);
-        await subir(firma, urls.firma.url, urls.firma.token, "image/png");
+        await subir(firma, urls.firma.ruta, urls.firma.token, "image/png", "firma");
         firmaRuta = urls.firma.ruta;
+      }
+      if (!conExcepcion && (!fotoRuta || !firmaRuta)) {
+        throw new ErrorDeApi(!fotoRuta ? "Falta la foto de las piezas entregadas." : "Falta la firma de quien recibe.");
       }
       await llamar("marcar-entregado", sesion.token, {
         operacion_id: operacion.current,
@@ -175,10 +189,19 @@ export default function Entrega() {
           </div>
         </Vidrio>
         <h3>3. Nombre de quien recibe</h3>
-        <label htmlFor="recibe">
-          Nombre
-          <input id="recibe" value={recibe} onChange={(evento) => setRecibe(evento.target.value)} autoComplete="name" required />
-        </label>
+        <label htmlFor="recibe">Nombre de quien recibe</label>
+        <input
+          id="recibe"
+          ref={campoNombre}
+          type="text"
+          className="campo-recibe"
+          value={recibe}
+          onChange={(evento) => setRecibe(evento.target.value)}
+          placeholder="Nombre completo de quien recibe"
+          autoComplete="name"
+          maxLength={80}
+          required
+        />
         <h3 className="margen-top">Excepción</h3>
         <div className="grupo" role="group" aria-label="Excepción de entrega">
           {EXCEPCIONES.map((item) => (
@@ -208,9 +231,13 @@ export default function Entrega() {
         <Boton variante="entrega" disabled={!listo} ocupado={ocupado} onClick={() => void enviar()}>
           ✔ Confirmar entrega
         </Boton>
-        <p className="muted" style={{ textAlign: "center" }}>
-          {faltantes.length ? `Falta ${faltantes.join(", ")}.` : "Todo listo para confirmar."}
-        </p>
+        {faltantes.length ? (
+          <div className="faltan" role="status">
+            {faltantes.map((texto) => <p key={texto}>{texto}</p>)}
+          </div>
+        ) : (
+          <p className="listo-ok" role="status">Todo listo para confirmar.</p>
+        )}
       </div>
     </CascaronRepartidor>
   );

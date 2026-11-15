@@ -16,8 +16,8 @@ servir(async (req) => {
   const firmaRuta = `evidencias/${datos.pedido_id}/firma.png`;
 
   const [foto, firma] = await Promise.all([
-    cliente.storage.from("evidencias").createSignedUploadUrl(fotoRuta),
-    cliente.storage.from("evidencias").createSignedUploadUrl(firmaRuta),
+    cliente.storage.from("evidencias").createSignedUploadUrl(fotoRuta, { upsert: true }),
+    cliente.storage.from("evidencias").createSignedUploadUrl(firmaRuta, { upsert: true }),
   ]);
   if (foto.error || firma.error) throw new Error(foto.error?.message ?? firma.error?.message ?? "EVIDENCIA_INVALIDA");
 
