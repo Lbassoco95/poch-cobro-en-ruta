@@ -37,7 +37,7 @@ describe("ruta de entrega y evidencia", () => {
     );
     const rutaId = ruta.rows[0].r.ruta_id as string;
     const doc = await db.query(
-      `select public.cargar_documento($1::uuid, $2::uuid, 'remision', 'R-1', 'Cliente Ruta', $3::jsonb, $4, 'OC-9', 'Centro') as r`,
+      `select public.cargar_documento($1::uuid, $2::uuid, 'remision', 'R-1', 'Cliente Ruta', $3::jsonb, $4, 'OC-9') as r`,
       [
         crypto.randomUUID(),
         rutaId,
@@ -92,7 +92,10 @@ describe("ruta de entrega y evidencia", () => {
       rutaId,
       demo.admin,
     ]);
-    assert.equal(cierre.rows[0].r.estado, "cerrada");
+    assert.equal(cierre.rows[0].r.entregados, 1);
+    assert.equal(cierre.rows[0].r.devueltos, 0);
+    const rutaCerrada = await db.query(`select estado from public.rutas where id = $1`, [rutaId]);
+    assert.equal(rutaCerrada.rows[0].estado, "cerrada");
 
     const integridad = await db.query(`select * from public.verificar_integridad()`);
     assert.equal(integridad.rows.length, 5);
@@ -106,7 +109,7 @@ describe("ruta de entrega y evidencia", () => {
       [crypto.randomUUID(), demo.repartidor2, hoy, demo.admin],
     );
     const doc = await db.query(
-      `select public.cargar_documento($1::uuid, $2::uuid, 'remision', 'R-2', 'Cliente 2', $3::jsonb, $4, 'OC-2', 'Sur') as r`,
+      `select public.cargar_documento($1::uuid, $2::uuid, 'remision', 'R-2', 'Cliente 2', $3::jsonb, $4, 'OC-2') as r`,
       [
         crypto.randomUUID(),
         ruta.rows[0].r.ruta_id,
@@ -173,17 +176,17 @@ describe("ruta de entrega y evidencia", () => {
     );
     const rutaId = ruta.rows[0].r.ruta_id as string;
     const a = await db.query(
-      `select public.cargar_documento($1::uuid,$2::uuid,'remision','R-3a','A',$3::jsonb,$4,'OC-a','Z1') as r`,
+      `select public.cargar_documento($1::uuid,$2::uuid,'remision','R-3a','A',$3::jsonb,$4,'OC-a') as r`,
       [crypto.randomUUID(), rutaId, JSON.stringify([{ producto_id: demo.producto.id, cantidad: 1 }]), demo.admin],
     );
     const b = await db.query(
-      `select public.cargar_documento($1::uuid,$2::uuid,'remision','R-3b','B',$3::jsonb,$4,'OC-b','Z2') as r`,
+      `select public.cargar_documento($1::uuid,$2::uuid,'remision','R-3b','B',$3::jsonb,$4,'OC-b') as r`,
       [crypto.randomUUID(), rutaId, JSON.stringify([{ producto_id: demo.producto.id, cantidad: 1 }]), demo.admin],
     );
     await assert.rejects(
       () =>
         db.query(
-          `select public.cargar_documento($1::uuid,$2::uuid,'remision','R-3a','A',$3::jsonb,$4,null,null)`,
+          `select public.cargar_documento($1::uuid,$2::uuid,'remision','R-3a','A',$3::jsonb,$4,null)`,
           [crypto.randomUUID(), rutaId, JSON.stringify([{ producto_id: demo.producto.id, cantidad: 1 }]), demo.admin],
         ),
       /DOCUMENTO_DUPLICADO/,
@@ -194,7 +197,8 @@ describe("ruta de entrega y evidencia", () => {
       `select public.reordenar_paradas($1::uuid,$2::uuid,$3::uuid,$4::uuid[],'Cliente B primero') as r`,
       [crypto.randomUUID(), rutaId, demo.repartidor1, orden],
     );
-    assert.deepEqual(reorden.rows[0].r.orden, orden);
+    assert.deepEqual(reorden.rows[0].r.antes, ["R-3a", "R-3b"]);
+    assert.deepEqual(reorden.rows[0].r.despues, ["R-3b", "R-3a"]);
 
     const cobro = await db.query(`select public.abrir_cobro($1::uuid,$2::uuid,$3::uuid,15) as r`, [
       crypto.randomUUID(),

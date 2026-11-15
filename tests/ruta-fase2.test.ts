@@ -45,21 +45,21 @@ describe("Fase 2: casos de revisión (ruta, evidencia, reorden, ajenos)", () => 
     return r.rows[0].r.ruta_id as string;
   }
 
-  async function nuevoDocumento(ruta: string, folio: string, oc: string | null = null, zona: string | null = null) {
+  async function nuevoDocumento(ruta: string, folio: string, oc: string | null = null) {
     const r = await db.query(
-      `select public.cargar_documento($1::uuid,$2::uuid,'remision',$3,'Cliente',$4::jsonb,$5,$6,$7) as r`,
-      [uuid(), ruta, folio, JSON.stringify([{ producto_id: demo.producto.id, cantidad: 1 }]), demo.admin, oc, zona],
+      `select public.cargar_documento($1::uuid,$2::uuid,'remision',$3,'Cliente',$4::jsonb,$5,$6) as r`,
+      [uuid(), ruta, folio, JSON.stringify([{ producto_id: demo.producto.id, cantidad: 1 }]), demo.admin, oc],
     );
     return r.rows[0].r as { pedido_id: string; parada: number };
   }
 
-  async function abrir(pedido: string, repartidor: string) {
+  async function abrir(pedido: string, repartidor: string): Promise<{ cobro_id: string; reabierto: boolean }> {
     const r = await db.query(`select public.abrir_cobro($1::uuid,$2::uuid,$3::uuid,15) as r`, [
       uuid(),
       pedido,
       repartidor,
     ]);
-    return r.rows[0].r as { cobro_id: string };
+    return r.rows[0].r;
   }
 
   async function pagar(pedido: string, repartidor: string) {
@@ -105,6 +105,7 @@ describe("Fase 2: casos de revisión (ruta, evidencia, reorden, ajenos)", () => 
 
     const reabierto = await abrir(doc.pedido_id, demo.repartidor1);
     assert.equal(reabierto.cobro_id, cobro.cobro_id, "reabre el mismo cobro");
+    assert.equal(reabierto.reabierto, true);
     const despues = await db.query(
       `select p.estado as pedido, c.estado as cobro, c.vigencia_hasta > now() as vigente from public.pedidos p join public.cobros c on c.pedido_id = p.id where p.id = $1`,
       [doc.pedido_id],
@@ -141,11 +142,11 @@ describe("Fase 2: casos de revisión (ruta, evidencia, reorden, ajenos)", () => 
           demo.repartidor2,
           [doc.pedido_id],
         ]),
-      /RUTA_AJENA/,
+      /RUTA_NO_ENCONTRADA/,
     );
   });
 
-  it("reordenar: solo pendientes o por cobrar, motivo de 5+ caracteres y bitácora con antes y después", async () => {
+  it("reordenar: solo pendientes o por cobrar, motivo de 5+ caracteres, sin choque de paradas y con bitácora de antes y después", async () => {
     const ruta = await nuevaRuta(demo.repartidor1, "Reorden");
     const a = await nuevoDocumento(ruta, "O-a");
     const b = await nuevoDocumento(ruta, "O-b");
@@ -159,61 +160,47 @@ describe("Fase 2: casos de revisión (ruta, evidencia, reorden, ajenos)", () => 
         motivo,
       ]);
 
-    await assert.rejects(() => reordenar([c.pedido_id, b.pedido_id, a.pedido_id], "abc"), /NOTA_OBLIGATORIA/);
-    await assert.rejects(() => reordenar([c.pedido_id, b.pedido_id], "Falta uno"), /ORDEN_INVALIDA/);
-    await assert.rejects(() => reordenar([c.pedido_id, c.pedido_id, b.pedido_id], "Repetido"), /ORDEN_INVALIDA/);
-    await assert.rejects(() => reordenar([c.pedido_id, b.pedido_id, uuid()], "Ajeno al orden"), /ORDEN_INVALIDA/);
+    await assert.rejects(() => reordenar([c.pedido_id, b.pedido_id, a.pedido_id], "abc"), /MOTIVO_OBLIGATORIO/);
+    await assert.rejects(() => reordenar([c.pedido_id, b.pedido_id], "Falta uno"), /ORDEN_INVALIDO/);
+    await assert.rejects(() => reordenar([c.pedido_id, c.pedido_id, b.pedido_id], "Repetido"), /ORDEN_INVALIDO/);
+    await assert.rejects(() => reordenar([c.pedido_id, b.pedido_id, uuid()], "Ajeno al orden"), /ORDEN_INVALIDO/);
+    await assert.rejects(() => reordenar([a.pedido_id, b.pedido_id, c.pedido_id], "Mismo orden"), /SIN_CAMBIOS/);
 
     const ok = await reordenar([c.pedido_id, a.pedido_id, b.pedido_id], "Calle cerrada al norte");
-    assert.deepEqual(ok.rows[0].r.orden, [c.pedido_id, a.pedido_id, b.pedido_id]);
+    assert.deepEqual(ok.rows[0].r.antes, ["O-a", "O-b", "O-c"]);
+    assert.deepEqual(ok.rows[0].r.despues, ["O-c", "O-a", "O-b"]);
     const bit = await db.query(
       `select detalle from public.bitacora where accion = 'ruta_reordenada' and detalle->>'ruta_id' = $1 order by id desc limit 1`,
       [ruta],
     );
-    assert.deepEqual(bit.rows[0].detalle.antes, [a.pedido_id, b.pedido_id, c.pedido_id]);
-    assert.deepEqual(bit.rows[0].detalle.despues, [c.pedido_id, a.pedido_id, b.pedido_id]);
+    assert.deepEqual(bit.rows[0].detalle.antes, ["O-a", "O-b", "O-c"]);
+    assert.deepEqual(bit.rows[0].detalle.despues, ["O-c", "O-a", "O-b"]);
     assert.equal(bit.rows[0].detalle.motivo, "Calle cerrada al norte");
 
-    // Una parada ya pagada y entregada deja de ser movible: el orden solo lista las demás.
+    // Una parada ya pagada y entregada deja de ser movible y conserva su lugar.
     await pagar(a.pedido_id, demo.repartidor1);
     await entregar(a.pedido_id, demo.repartidor1);
-    await assert.rejects(() => reordenar([c.pedido_id, a.pedido_id, b.pedido_id], "Incluye entregada"), /ORDEN_INVALIDA/);
+    const lugarDeA = (await db.query(`select parada from public.pedidos where id = $1`, [a.pedido_id])).rows[0].parada;
+    await assert.rejects(() => reordenar([c.pedido_id, a.pedido_id, b.pedido_id], "Incluye entregada"), /ORDEN_INVALIDO/);
     const dos = await reordenar([b.pedido_id, c.pedido_id], "Solo las pendientes");
-    assert.deepEqual(dos.rows[0].r.orden, [b.pedido_id, c.pedido_id]);
-  });
-
-  it("reordenar no repite números de parada entre movibles y ya entregadas", { todo: "Hallazgo de revisión: renumera desde 1 y choca con paradas entregadas" }, async () => {
-    const ruta = await nuevaRuta(demo.repartidor2, "Choque");
-    const a = await nuevoDocumento(ruta, "C-a");
-    const b = await nuevoDocumento(ruta, "C-b");
-    const c = await nuevoDocumento(ruta, "C-c");
-    await pagar(a.pedido_id, demo.repartidor2);
-    await entregar(a.pedido_id, demo.repartidor2);
-    await db.query(`select public.reordenar_paradas($1::uuid,$2::uuid,$3::uuid,$4::uuid[],'Cambio de orden')`, [
-      uuid(),
-      ruta,
-      demo.repartidor2,
-      [c.pedido_id, b.pedido_id],
-    ]);
-    const filas = await db.query(`select parada from public.pedidos where ruta_id = $1`, [ruta]);
+    assert.deepEqual(dos.rows[0].r.despues, ["O-b", "O-c"]);
+    const filas = await db.query(`select id, parada from public.pedidos where ruta_id = $1`, [ruta]);
     const paradas = filas.rows.map((f) => f.parada);
     assert.equal(new Set(paradas).size, paradas.length, `paradas repetidas: ${paradas.join(",")}`);
+    assert.equal(filas.rows.find((f) => f.id === a.pedido_id).parada, lugarDeA, "la entregada conserva su lugar");
   });
 
-  it("orden de compra de origen y zona quedan en el documento y en la bitácora", async () => {
+  it("orden de compra de origen queda en el documento y en la bitácora; más de 40 caracteres se rechaza", async () => {
     const ruta = await nuevaRuta(demo.repartidor1, "OC");
-    const con = await nuevoDocumento(ruta, "OC-1", "  OC-7788  ", "Centro");
-    const sin = await nuevoDocumento(ruta, "OC-2", "   ", null);
-    const largo = await nuevoDocumento(ruta, "OC-3", "X".repeat(60), null);
-    const filas = await db.query(
-      `select id, orden_compra_ref, zona from public.pedidos where id = any($1::uuid[])`,
-      [[con.pedido_id, sin.pedido_id, largo.pedido_id]],
-    );
+    const con = await nuevoDocumento(ruta, "OC-1", "  OC-7788  ");
+    const sin = await nuevoDocumento(ruta, "OC-2", "   ");
+    const filas = await db.query(`select id, orden_compra_ref from public.pedidos where id = any($1::uuid[])`, [
+      [con.pedido_id, sin.pedido_id],
+    ]);
     const por = new Map(filas.rows.map((f) => [f.id, f]));
     assert.equal(por.get(con.pedido_id).orden_compra_ref, "OC-7788");
-    assert.equal(por.get(con.pedido_id).zona, "Centro");
     assert.equal(por.get(sin.pedido_id).orden_compra_ref, null);
-    assert.equal(por.get(largo.pedido_id).orden_compra_ref.length, 40);
+    await assert.rejects(() => nuevoDocumento(ruta, "OC-3", "X".repeat(41)), /ORDEN_COMPRA_INVALIDA/);
     const bit = await db.query(
       `select detalle from public.bitacora where accion = 'documento_cargado' and pedido_id = $1`,
       [con.pedido_id],
@@ -221,11 +208,11 @@ describe("Fase 2: casos de revisión (ruta, evidencia, reorden, ajenos)", () => 
     assert.equal(bit.rows[0].detalle.orden_compra, "OC-7788");
   });
 
-  it("evidencia: rechaza excepción inválida, nota corta y excepciones sin la evidencia mínima; no se altera después", async () => {
+  it("evidencia: rechaza lo incompleto; la excepción pide nota y queda para revisión; no se altera después", async () => {
     const ruta = await nuevaRuta(demo.repartidor1, "Evidencia");
     const doc = await nuevoDocumento(ruta, "E-1");
     await pagar(doc.pedido_id, demo.repartidor1);
-    const entrega = (excepcion: string | null, nota: string | null, foto: boolean, firma: boolean, recibe = "Ana") =>
+    const entrega = (excepcion: string | null, nota: string | null, foto: boolean, firma: boolean, recibe = "Ana", hash = "a".repeat(64)) =>
       db.query(
         `select public.marcar_entregado($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,$8,$9,$10,null,null) as r`,
         [
@@ -234,7 +221,7 @@ describe("Fase 2: casos de revisión (ruta, evidencia, reorden, ajenos)", () => 
           demo.repartidor1,
           recibe,
           foto ? `evidencias/${doc.pedido_id}/foto.jpg` : null,
-          foto ? "a".repeat(64) : null,
+          foto ? hash : null,
           firma ? `evidencias/${doc.pedido_id}/firma.png` : null,
           firma ? "b".repeat(64) : null,
           excepcion,
@@ -246,20 +233,46 @@ describe("Fase 2: casos de revisión (ruta, evidencia, reorden, ajenos)", () => 
     await assert.rejects(() => entrega(null, null, true, true, "  "), /EVIDENCIA_INCOMPLETA/);
     await assert.rejects(() => entrega("inventada", "Nota larga", true, true), /EXCEPCION_INVALIDA/);
     await assert.rejects(() => entrega("sin_foto", "abc", false, true), /NOTA_OBLIGATORIA/);
-    await assert.rejects(() => entrega("sin_foto", "Sin cámara hoy", false, false), /EVIDENCIA_INCOMPLETA/);
-    await assert.rejects(() => entrega("cliente_no_firma", "No quiso firmar", false, false), /EVIDENCIA_INCOMPLETA/);
+    await assert.rejects(() => entrega("recibio_tercero", null, false, false), /NOTA_OBLIGATORIA/);
+    await assert.rejects(() => entrega(null, null, true, true, "Ana", "no-es-un-hash"), /hash|restricci|constraint/i);
 
-    const ok = await entrega("sin_foto", "Sin cámara hoy", false, true);
+    const ok = await entrega("recibio_tercero", "Recibió el vecino", false, false);
     assert.equal(ok.rows[0].r.requiere_revision, true);
 
     await assert.rejects(
       () => db.query(`update public.entregas_evidencia set foto_ruta = 'otra' where pedido_id = $1`, [doc.pedido_id]),
-      /no se puede alterar/,
+      /no se modifica/,
     );
     await assert.rejects(
       () => db.query(`delete from public.entregas_evidencia where pedido_id = $1`, [doc.pedido_id]),
-      /solo admite agregar/,
+      /no se borran/,
     );
+
+    const revisar = () =>
+      db.query(`select public.revisar_entrega($1::uuid,$2::uuid,'Revisado con el cliente',$3) as r`, [
+        uuid(),
+        doc.pedido_id,
+        demo.admin,
+      ]);
+    assert.equal((await revisar()).rows[0].r.revisada, true);
+    await assert.rejects(() => revisar(), /ENTREGA_SIN_REVISION_PENDIENTE/);
+  });
+
+  it("devolver un documento exige motivo de 5+ caracteres y regresa la mercancía", async () => {
+    const ruta = await nuevaRuta(demo.repartidor1, "Devolver");
+    const doc = await nuevoDocumento(ruta, "D-1");
+    await assert.rejects(
+      () => db.query(`select public.devolver_documento($1::uuid,$2::uuid,'no',$3)`, [uuid(), doc.pedido_id, demo.repartidor1]),
+      /MOTIVO_OBLIGATORIO/,
+    );
+    const ok = await db.query(`select public.devolver_documento($1::uuid,$2::uuid,'Cliente cerrado hoy',$3) as r`, [
+      uuid(),
+      doc.pedido_id,
+      demo.repartidor1,
+    ]);
+    assert.equal(ok.rows[0].r.estado, "devuelto");
+    const integridad = await db.query(`select * from public.verificar_integridad()`);
+    assert.ok(integridad.rows.every((f) => f.ok));
   });
 
   it("cierre con pendientes y cancelar documento de ruta se rechazan", async () => {
