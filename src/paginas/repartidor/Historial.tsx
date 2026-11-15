@@ -1,25 +1,38 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Aviso, Marco } from "../../componentes/Marco";
+import { Aviso } from "../../componentes/Aviso";
+import { CascaronRepartidor } from "../../componentes/CascaronRepartidor";
+import { Insignia } from "../../componentes/Insignia";
+import { Vidrio } from "../../componentes/Vidrio";
 import { useSesion } from "../../contexto/Sesion";
 import { ErrorDeApi, llamar } from "../../lib/api";
-import { etiqueta, fechaHora, pesos } from "../../lib/formato";
+import { fechaLarga, horaCorta, pesos } from "../../lib/formato";
+import type { TipoInsignia } from "../../lib/parada";
+
+type Parada = {
+  id: string;
+  folio: number;
+  cliente: string;
+  total: number;
+  estado: string;
+  actualizado_en: string;
+  folio_documento: string | null;
+  orden_compra: string | null;
+};
 
 type Respuesta = {
   periodo: string;
   total_cobrado: number;
-  paradas: Array<{
-    id: string;
-    cliente: string;
-    zona: string | null;
-    total: number;
-    estado: string;
-    actualizado_en: string;
-    folio_documento: string | null;
-    orden_compra: string | null;
-    comprobante_clave: string | null;
-  }>;
+  paradas: Parada[];
 };
+
+function insignia(estado: string): TipoInsignia {
+  if (estado === "entregado") return "entregado";
+  if (estado === "cancelado") return "cancelado";
+  if (estado === "devuelto") return "devuelto";
+  if (estado === "pagado") return "pagado";
+  return "porcobrar";
+}
 
 export default function Historial() {
   const { sesion } = useSesion();
@@ -29,32 +42,62 @@ export default function Historial() {
 
   useEffect(() => {
     if (!sesion) return;
+    let activo = true;
     llamar<Respuesta>("mi-historial", sesion.token, { periodo })
-      .then(setDatos)
-      .catch((fallo: unknown) => setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo cargar el historial."));
+      .then((data) => {
+        if (activo) setDatos(data);
+      })
+      .catch((fallo: unknown) => {
+        if (activo) setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo cargar el historial.");
+      });
+    return () => {
+      activo = false;
+    };
   }, [sesion, periodo]);
 
+  const paradas = datos?.paradas ?? [];
+  const entregas = paradas.filter((parada) => parada.estado === "entregado").length;
+  const sinCobro = paradas.filter((parada) => parada.estado === "cancelado" || parada.estado === "devuelto").length;
+  const dias = [...new Set(paradas.map((parada) => parada.actualizado_en.slice(0, 10)))];
+
   return (
-    <Marco titulo="Historial" enlaces={[{ a: "/repartidor", texto: "Mi ruta" }]}>
-      <Aviso texto={error} />
-      <div className="flex gap-2">
-        <button type="button" onClick={() => setPeriodo("hoy")} className={`min-h-12 flex-1 rounded-2xl border px-3 font-medium ${periodo === "hoy" ? "border-jade bg-jade text-white" : "border-linea bg-white"}`}>Hoy</button>
-        <button type="button" onClick={() => setPeriodo("semana")} className={`min-h-12 flex-1 rounded-2xl border px-3 font-medium ${periodo === "semana" ? "border-jade bg-jade text-white" : "border-linea bg-white"}`}>Esta semana</button>
-      </div>
-      <p className="mt-4 text-lg">Total cobrado: <strong>{pesos(datos?.total_cobrado ?? 0)}</strong></p>
-      <ul className="mt-4 space-y-3">
-        {(datos?.paradas ?? []).map((parada) => (
-          <li key={parada.id} className="rounded-2xl border border-linea bg-white p-4">
-            <p className="text-sm text-marino/70">{etiqueta(parada.estado)} · {fechaHora(parada.actualizado_en)}</p>
-            <p className="text-lg font-semibold">{parada.cliente}</p>
-            <p className="text-sm">{parada.zona ?? "Sin zona"} · {parada.folio_documento}{parada.orden_compra ? ` · OC ${parada.orden_compra}` : ""}</p>
-            <p className="mt-1 text-xl font-semibold">{pesos(parada.total)}</p>
-            {parada.comprobante_clave && (
-              <Link className="mt-2 inline-block text-sm font-medium text-jade" to={`/c/${parada.comprobante_clave}`}>Ver comprobante</Link>
-            )}
-          </li>
+    <CascaronRepartidor titulo="Historial" pestana="historial">
+      <div className="pad">
+        <Aviso texto={error} />
+        <div className="grupo" role="group" aria-label="Periodo">
+          <button type="button" className="chip" aria-pressed={periodo === "hoy"} onClick={() => setPeriodo("hoy")}>Hoy</button>
+          <button type="button" className="chip" aria-pressed={periodo === "semana"} onClick={() => setPeriodo("semana")}>Esta semana</button>
+        </div>
+        <Vidrio destacado>
+          <div className="hielo">Cobrado {periodo === "hoy" ? "hoy" : "esta semana"}</div>
+          <div className="monto" style={{ fontSize: 34 }}>{pesos(datos?.total_cobrado ?? 0)}</div>
+          <div className="hielo margen-top">
+            {entregas} {entregas === 1 ? "entrega" : "entregas"} · {sinCobro} sin cobrar
+          </div>
+        </Vidrio>
+        {paradas.length === 0 && !error ? <p>No hay cobros cerrados en este periodo.</p> : null}
+        {dias.map((dia) => (
+          <section key={dia}>
+            <h3 className="margen-top-lg">{fechaLarga(dia)}</h3>
+            {paradas.filter((parada) => parada.actualizado_en.slice(0, 10) === dia).map((parada) => (
+              <Link key={parada.id} className="card" to={`/repartidor/parada/${parada.id}`} style={{ display: "block", minHeight: "var(--toque)" }}>
+                <div className="fila">
+                  <b>Remisión {parada.folio_documento ?? parada.folio}</b>
+                  <Insignia tipo={insignia(parada.estado)} />
+                </div>
+                <div className="fila margen-top">
+                  <span className="nombre">{parada.cliente}</span>
+                  <span className="monto">{pesos(parada.total)}</span>
+                </div>
+                <div className="muted">
+                  {horaCorta(parada.actualizado_en)} h
+                  {parada.orden_compra ? ` · ${parada.orden_compra}` : ""}
+                </div>
+              </Link>
+            ))}
+          </section>
         ))}
-      </ul>
-    </Marco>
+      </div>
+    </CascaronRepartidor>
   );
 }

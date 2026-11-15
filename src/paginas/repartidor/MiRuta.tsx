@@ -1,173 +1,131 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { Aviso, Boton, Marco } from "../../componentes/Marco";
+import { Link, useLocation } from "react-router-dom";
+import { Aviso } from "../../componentes/Aviso";
+import { CascaronRepartidor } from "../../componentes/CascaronRepartidor";
+import { Insignia } from "../../componentes/Insignia";
+import { Vidrio } from "../../componentes/Vidrio";
 import { useSesion } from "../../contexto/Sesion";
 import { ErrorDeApi, llamar } from "../../lib/api";
-import { etiqueta, pesos } from "../../lib/formato";
-
-type Parada = {
-  id: string;
-  cliente_alias: string;
-  zona: string | null;
-  total: number;
-  estado: string;
-  parada: number;
-  tipo_documento: string | null;
-  folio_documento: string | null;
-  orden_compra_ref: string | null;
-  piezas: Array<{ nombre: string; cantidad: number }>;
-};
-
-type Respuesta = {
-  ruta: { id: string; nombre: string } | null;
-  paradas: Parada[];
-  resumen: { entregadas: number; cobrado: number; por_cobrar: number };
-  siguiente_parada: string | null;
-};
+import { fechaLarga, pesos } from "../../lib/formato";
+import { insigniaDeParada, piezasDe, textoBotonParada, textoPiezas } from "../../lib/parada";
+import type { ParadaRuta, RespuestaRuta } from "../../lib/tipos";
 
 export default function MiRuta() {
   const { sesion } = useSesion();
-  const [datos, setDatos] = useState<Respuesta | null>(null);
+  const location = useLocation();
+  const avisoOrden = typeof location.state === "object" && location.state && "aviso" in location.state
+    ? String((location.state as { aviso?: string }).aviso ?? "")
+    : "";
+  const [datos, setDatos] = useState<RespuestaRuta | null>(null);
   const [error, setError] = useState("");
-  const [motivo, setMotivo] = useState("");
-  const [orden, setOrden] = useState<string[]>([]);
-  const [ocupado, setOcupado] = useState(false);
-
-  function cargar() {
-    if (!sesion) return;
-    llamar<Respuesta>("mi-ruta", sesion.token)
-      .then((data) => {
-        setDatos(data);
-        setOrden(data.paradas.filter((p) => p.estado === "pendiente" || p.estado === "por_cobrar").map((p) => p.id));
-        if (data.siguiente_parada) {
-          requestAnimationFrame(() => {
-            document.getElementById(`parada-${data.siguiente_parada}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
-          });
-        }
-      })
-      .catch((fallo: unknown) => setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo cargar la ruta."));
-  }
 
   useEffect(() => {
+    if (!sesion) return;
+    let activo = true;
+    const cargar = () => {
+      llamar<RespuestaRuta>("mi-ruta", sesion.token)
+        .then((data) => {
+          if (activo) setDatos(data);
+        })
+        .catch((fallo: unknown) => {
+          if (activo) setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo cargar la ruta.");
+        });
+    };
     cargar();
     const reloj = setInterval(cargar, 5000);
-    return () => clearInterval(reloj);
+    return () => {
+      activo = false;
+      clearInterval(reloj);
+    };
   }, [sesion]);
 
-  function mover(indice: number, delta: number) {
-    const destino = indice + delta;
-    if (destino < 0 || destino >= orden.length) return;
-    const copia = [...orden];
-    const [item] = copia.splice(indice, 1);
-    copia.splice(destino, 0, item);
-    setOrden(copia);
-  }
+  useEffect(() => {
+    if (!datos?.siguiente_parada) return;
+    const zona = document.getElementById("contenido");
+    const parada = document.getElementById(`parada-${datos.siguiente_parada}`);
+    if (!zona || !parada) return;
+    const top = parada.getBoundingClientRect().top - zona.getBoundingClientRect().top + zona.scrollTop;
+    zona.scrollTop = Math.max(0, top - 12);
+  }, [datos?.siguiente_parada]);
 
-  async function guardarOrden() {
-    if (!sesion || !datos?.ruta) return;
-    setOcupado(true);
-    setError("");
-    try {
-      await llamar("reordenar-paradas", sesion.token, {
-        operacion_id: crypto.randomUUID(),
-        ruta_id: datos.ruta.id,
-        orden,
-        motivo,
-      });
-      setMotivo("");
-      cargar();
-    } catch (fallo) {
-      setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo guardar el orden.");
-    } finally {
-      setOcupado(false);
-    }
-  }
-
-  function accion(parada: Parada): { a: string; texto: string } | null {
-    if (parada.estado === "pendiente" || parada.estado === "por_cobrar") {
-      return { a: `/repartidor/parada/${parada.id}`, texto: "Cobrar" };
-    }
-    if (parada.estado === "pagado") return { a: `/repartidor/entrega/${parada.id}`, texto: "Entregar" };
-    if (parada.estado === "entregado") return { a: `/repartidor/parada/${parada.id}`, texto: "Ver" };
-    return null;
-  }
-
-  const movibles = orden.map((id) => datos?.paradas.find((p) => p.id === id)).filter(Boolean) as Parada[];
+  const paradas = datos?.paradas ?? [];
+  const movibles = paradas.filter((parada) => parada.estado === "pendiente" || parada.estado === "por_cobrar");
+  const entregadas = datos?.resumen.entregadas ?? 0;
+  const total = paradas.length;
+  const avance = total ? (entregadas / total) * 100 : 0;
 
   return (
-    <Marco titulo="Mi ruta" enlaces={[{ a: "/repartidor/historial", texto: "Historial" }]}>
-      <Aviso texto={error} />
-      {!datos?.ruta && <p className="mt-4 text-lg">No hay una ruta abierta para hoy.</p>}
-      {datos?.ruta && (
-        <>
-          <p className="text-marino/70">{datos.ruta.nombre}</p>
-          <section className="mt-4 grid grid-cols-3 gap-2" aria-label="Resumen de la ruta">
-            <Resumen etiqueta="Entregadas" valor={String(datos.resumen.entregadas)} />
-            <Resumen etiqueta="Cobrado" valor={pesos(datos.resumen.cobrado)} />
-            <Resumen etiqueta="Por cobrar" valor={pesos(datos.resumen.por_cobrar)} />
-          </section>
-          <ol className="mt-6 space-y-4">
-            {datos.paradas.map((parada) => {
-              const boton = accion(parada);
-              return (
-                <li
-                  key={parada.id}
-                  id={`parada-${parada.id}`}
-                  className={`rounded-2xl border px-4 py-4 ${parada.id === datos.siguiente_parada ? "border-jade bg-white shadow-sm" : "border-linea bg-white/70"}`}
-                >
-                  <p className="text-sm text-marino/70">Parada {parada.parada} · {etiqueta(parada.estado)}</p>
-                  <h2 className="text-xl font-semibold">{parada.cliente_alias}</h2>
-                  <p className="text-sm">{parada.zona ?? "Sin zona"}</p>
-                  <p className="mt-1 text-sm">
-                    {etiqueta(parada.tipo_documento)} {parada.folio_documento}
-                    {parada.orden_compra_ref ? ` · OC ${parada.orden_compra_ref}` : ""}
-                  </p>
-                  <p className="mt-1 text-sm">
-                    {parada.piezas.map((p) => `${p.cantidad}× ${p.nombre}`).join(", ")}
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold">{pesos(parada.total)}</p>
-                  {boton && (
-                    <Link to={boton.a} className="mt-3 inline-flex min-h-14 w-full items-center justify-center rounded-2xl bg-jade text-lg font-semibold text-white">
-                      {boton.texto}
-                    </Link>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-          {movibles.length > 1 && (
-            <section className="mt-8 rounded-2xl border border-linea bg-white p-4">
-              <h2 className="text-lg font-semibold">Reordenar paradas</h2>
-              <p className="text-sm text-marino/70">Solo pendientes y por cobrar. Escriba el motivo.</p>
-              <ul className="mt-3 space-y-2">
-                {movibles.map((parada, indice) => (
-                  <li key={parada.id} className="flex items-center gap-2">
-                    <span className="flex-1 text-sm">{parada.cliente_alias}</span>
-                    <button type="button" className="rounded-xl border border-linea px-3 py-2" onClick={() => mover(indice, -1)} aria-label="Subir">↑</button>
-                    <button type="button" className="rounded-xl border border-linea px-3 py-2" onClick={() => mover(indice, 1)} aria-label="Bajar">↓</button>
-                  </li>
-                ))}
-              </ul>
-              <label className="mt-3 block text-sm font-medium" htmlFor="motivo-reorden">
-                Motivo
-                <textarea id="motivo-reorden" value={motivo} onChange={(e) => setMotivo(e.target.value)} className="mt-1 min-h-20 w-full rounded-2xl border border-linea px-3 py-2" />
-              </label>
-              <div className="mt-3">
-                <Boton onClick={() => void guardarOrden()} ocupado={ocupado}>Guardar orden</Boton>
+    <CascaronRepartidor titulo="Mi ruta" pestana="ruta">
+      <div className="pad">
+        <Aviso texto={error} />
+        {avisoOrden ? <Aviso tono="ok">{avisoOrden}</Aviso> : null}
+        {!datos?.ruta && !error ? <p>No hay una ruta abierta para hoy.</p> : null}
+        {datos?.ruta ? (
+          <>
+            <Vidrio destacado>
+              <div className="hielo">{fechaLarga(datos.dia)} · {total} paradas</div>
+              <div className="fila margen-top">
+                <div>
+                  <div className="monto" style={{ fontSize: 30 }}>{entregadas} de {total}</div>
+                  <div className="hielo">entregadas</div>
+                </div>
+                <div className="derecha">
+                  <div className="hielo">Cobrado</div>
+                  <div className="monto" style={{ fontSize: 22 }}>{pesos(datos.resumen.cobrado)}</div>
+                  <div className="hielo">Por cobrar {pesos(datos.resumen.por_cobrar)}</div>
+                </div>
               </div>
-            </section>
-          )}
-        </>
-      )}
-    </Marco>
+              <div className="barra margen-top" role="img" aria-label={`${entregadas} de ${total} paradas entregadas`}>
+                <i style={{ width: `${avance}%` }} />
+              </div>
+            </Vidrio>
+            {movibles.length >= 2 ? (
+              <Link className="btn sec" to="/repartidor/orden">↕ Cambiar orden de paradas</Link>
+            ) : null}
+            <div className="margen-top">
+              {paradas.map((parada) => (
+                <ParadaCard key={parada.id} parada={parada} siguiente={datos.siguiente_parada === parada.id} />
+              ))}
+            </div>
+          </>
+        ) : null}
+      </div>
+    </CascaronRepartidor>
   );
 }
 
-function Resumen({ etiqueta: nombre, valor }: { etiqueta: string; valor: string }) {
+function ParadaCard({ parada, siguiente }: { parada: ParadaRuta; siguiente: boolean }) {
+  const fin = parada.estado === "entregado" || parada.estado === "cancelado" || parada.estado === "devuelto";
+  const numero = parada.estado === "entregado" ? "✔" : fin ? "✖" : String(parada.parada);
+  const claseNum = parada.estado === "entregado" ? "ok" : fin ? "mal" : siguiente ? "ya" : "";
+  const piezas = piezasDe(parada.piezas);
+  const folio = parada.folio_documento ?? String(parada.folio);
   return (
-    <article className="rounded-2xl border border-linea bg-white p-3 text-center">
-      <p className="text-xs text-marino/70">{nombre}</p>
-      <p className="mt-1 text-lg font-semibold">{valor}</p>
+    <article id={`parada-${parada.id}`} className={`card parada${parada.estado === "entregado" ? " hecha" : ""}${siguiente ? " sig" : ""}`}>
+      <div className="fila" style={{ alignItems: "flex-start" }}>
+        <div className={`num ${claseNum}`} aria-label={`Parada ${parada.parada}`}>{numero}</div>
+        <div className="crece">
+          <div className="fila" style={{ alignItems: "flex-start" }}>
+            <div className="nombre">
+              <b>{parada.cliente_alias}</b>
+            </div>
+            <span className="monto" style={{ fontSize: 18 }}>{pesos(parada.total)}</span>
+          </div>
+          <div className="muted margen-top">
+            Remisión {folio}
+            {parada.orden_compra_ref ? ` · ${parada.orden_compra_ref}` : ""}
+            {" · "}
+            {textoPiezas(piezas)}
+          </div>
+          <div className="grupo margen-top">
+            <Insignia tipo={insigniaDeParada(parada)} />
+            {siguiente ? <Insignia tipo="aviso">➜ Siguiente parada</Insignia> : null}
+          </div>
+        </div>
+      </div>
+      <Link className={`btn margen-top${siguiente || parada.estado === "pagado" ? "" : " sec"}`} to={`/repartidor/parada/${parada.id}`}>
+        {textoBotonParada(parada)}
+      </Link>
     </article>
   );
 }

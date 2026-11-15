@@ -1,6 +1,6 @@
 # Poch · cobro en ruta con CoDi
 
-**Poch** (por *Pochteca*, los comerciantes que recorrían rutas en Mesoamérica) convierte el celular de un repartidor en su terminal de cobro. El repartidor arma el pedido con piezas de su camioneta, el sistema genera un QR de CoDi, el cliente paga desde la app de su banco y el dinero va **directo de la cuenta del cliente a la cuenta de la empresa**. Cuando llega la confirmación, el stock de la camioneta baja y la empresa ve todo en tiempo real.
+**Poch** (por *Pochteca*, los comerciantes que recorrían rutas en Mesoamérica) convierte el celular de un repartidor en su terminal de cobro. Administración arma la ruta del día con remisiones. El repartidor recorre las paradas en orden, cobra el monto del documento con un QR de CoDi y confirma la entrega con foto y firma. El dinero va **directo de la cuenta del cliente a la cuenta de la empresa**.
 
 Proyecto del **Cursor Hackatón México (CDMX, 14–15 de noviembre de 2026)**, construido con la API de pey.
 
@@ -9,6 +9,16 @@ Proyecto del **Cursor Hackatón México (CDMX, 14–15 de noviembre de 2026)**, 
 ## El problema
 
 En refaccionarias con venta en ruta, el repartidor cobra en efectivo o pide una transferencia a una CLABE personal. El dinero tarda en cuadrar, el stock de la camioneta no se actualiza al momento y la empresa no ve el cobro hasta horas después. Poch deja que el celular del repartidor cobre con CoDi a nombre de la empresa.
+
+## Pantallas
+
+El aspecto sale de `docs/diseno/poch-ruta.html`: fondo oscuro, vidrio y fondo vivo. De 640 px hacia abajo el repartidor usa la pantalla completa. Hacia arriba se ve dentro de un marco de teléfono. Administración usa todo el ancho.
+
+- Repartidor: ingreso, mi ruta, remisión, cobro con QR, estado, entrega con foto y firma, cambio de orden e historial.
+- Administración: tablero, rutas, pagos por resolver, bitácora e integridad, y guía de estilo (`/estilo`).
+- El cliente abre el comprobante en `/c/:clave`, sin iniciar sesión.
+
+La ruta no tiene zona: producción no guarda ese dato. Al cerrar una ruta, la pantalla muestra entregados, devueltos y cobrado. El aviso de cambio de orden lee los folios que guarda la bitácora.
 
 ## Recorrido de un cobro
 
@@ -1451,7 +1461,7 @@ npm install
 npm run dev
 ```
 
-Sin las variables `VITE_*` la pantalla de ingreso lo indica. El comprobante público del cliente vive en `/c/:clave`.
+Sin las variables `VITE_*` la pantalla de ingreso lo indica. El comprobante público del cliente vive en `/c/:clave`. La guía de estilo, sin sesión, vive en `/estilo`.
 
 ## Siguiente fase (fuera de esta corrida)
 
@@ -1464,8 +1474,9 @@ Disputas con evidencia, devoluciones por API, pago con tarjeta o liga, carga de 
 - [`docs/cuaderno-de-datos.md`](docs/cuaderno-de-datos.md)
 - [`docs/GUION-DEMO.md`](docs/GUION-DEMO.md)
 - [`docs/PROMPT-CONSTRUCCION.md`](docs/PROMPT-CONSTRUCCION.md)
+- [`docs/diseno/poch-ruta.html`](docs/diseno/poch-ruta.html)
 - [`CLAUDE.md`](CLAUDE.md)
 
 ## Equipo y método
 
-Desarrollo de Yoltik con Git Flow simplificado: `main` solo con lo que funciona, `develop` para integrar y `feature/*` para cada pieza. Esta corrida vive en `feature/construccion` con pull request hacia `develop`.
+Desarrollo de Yoltik con Git Flow simplificado: `main` solo con lo que funciona, `develop` para integrar y `feature/*` para cada pieza. El front oscuro de la ruta está en `revision/code`. `main` se actualiza cuando Polo lo pide.

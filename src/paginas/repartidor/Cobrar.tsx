@@ -1,61 +1,52 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { Aviso, Boton, Marco } from "../../componentes/Marco";
+import { useNavigate, useParams } from "react-router-dom";
+import { Aviso } from "../../componentes/Aviso";
+import { Boton } from "../../componentes/Boton";
+import { CascaronRepartidor } from "../../componentes/CascaronRepartidor";
+import { Insignia } from "../../componentes/Insignia";
+import { Modal } from "../../componentes/Modal";
+import { Pips } from "../../componentes/Pips";
+import { Qr } from "../../componentes/Qr";
+import { Vidrio } from "../../componentes/Vidrio";
 import { useSesion } from "../../contexto/Sesion";
 import { ErrorDeApi, llamar } from "../../lib/api";
-import { etiqueta, pesos, segundosEnReloj } from "../../lib/formato";
-
-type Estado = {
-  pedido: { id: string; folio: number; estado: string; cliente_alias: string; total: number };
-  cobro: { id: string; concepto: string; importe: number; estado: string } | null;
-  intento: { id: string; estado: string; expira_en: string; metodo: string } | null;
-  segundos: number;
-};
-
-type IntentoCreado = {
-  intento_id?: string;
-  qr_imagen?: string | null;
-  qr_cadena?: string;
-  ya_enviado?: boolean;
-  pendiente_de_imagen?: boolean;
-  error?: string;
-};
+import { borrarQr, guardarQr, leerQr, pesos, segundosEnReloj, srcQr } from "../../lib/formato";
+import type { EstadoPedido } from "../../lib/tipos";
 
 export default function Cobrar() {
   const { pedidoId = "" } = useParams();
   const { sesion } = useSesion();
   const navegar = useNavigate();
-  const operacionCobro = useRef(crypto.randomUUID());
-  const operacionCancelar = useRef(crypto.randomUUID());
-  const [estado, setEstado] = useState<Estado | null>(null);
-  const [imagen, setImagen] = useState("");
+  const opAviso = useRef(crypto.randomUUID());
+  const opDevolver = useRef(crypto.randomUUID());
+  const [estado, setEstado] = useState<EstadoPedido | null>(null);
+  const [imagen, setImagen] = useState<string | null>(() => leerQr(pedidoId));
   const [segundos, setSegundos] = useState(0);
-  const [celular, setCelular] = useState("");
-  const [mostrarCelular, setMostrarCelular] = useState(false);
   const [error, setError] = useState("");
+  const [aviso, setAviso] = useState(false);
+  const [cancelar, setCancelar] = useState(false);
+  const [celular, setCelular] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [errorModal, setErrorModal] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [avisoEnviado, setAvisoEnviado] = useState(false);
-
-  useEffect(() => {
-    const guardada = sessionStorage.getItem(`poch-qr-${pedidoId}`);
-    if (guardada) setImagen(guardada);
-  }, [pedidoId]);
 
   useEffect(() => {
     if (!sesion) return;
     let activo = true;
     const cargar = () => {
-      llamar<Estado>("estado-pedido", sesion.token, { pedido_id: pedidoId })
+      llamar<EstadoPedido>("estado-pedido", sesion.token, { pedido_id: pedidoId })
         .then((data) => {
           if (!activo) return;
           setEstado(data);
           setSegundos(data.segundos);
           if (data.pedido.estado === "pagado" || data.pedido.estado === "entregado") {
-            navegar(`/repartidor/pagado/${pedidoId}`, { replace: true });
+            borrarQr(pedidoId);
+            navegar(`/repartidor/estado/${pedidoId}`, { replace: true });
           }
         })
         .catch((fallo: unknown) => {
-          if (activo) setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo consultar el pedido.");
+          if (activo) setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo consultar el cobro.");
         });
     };
     cargar();
@@ -71,98 +62,136 @@ export default function Cobrar() {
     return () => clearInterval(reloj);
   }, []);
 
-  async function generar(metodo: "qr" | "push") {
+  useEffect(() => {
+    if (estado && segundos === 0 && estado.intento && estado.pedido.estado !== "pagado") {
+      navegar(`/repartidor/estado/${pedidoId}`, { replace: true });
+    }
+  }, [segundos, estado, navegar, pedidoId]);
+
+  async function enviarAviso() {
     if (!sesion || !estado?.cobro) return;
+    if (!/^[0-9]{10}$/.test(celular)) {
+      setErrorModal("Escriba exactamente 10 dígitos, sin espacios.");
+      return;
+    }
     setOcupado(true);
-    setError("");
+    setErrorModal("");
     try {
-      const data = await llamar<IntentoCreado>("crear-intento-pago", sesion.token, {
-        operacion_id: operacionCobro.current,
+      const data = await llamar<{ ya_enviado?: boolean; qr_imagen?: string }>("crear-intento-pago", sesion.token, {
+        operacion_id: opAviso.current,
         cobro_id: estado.cobro.id,
-        metodo,
-        celular: metodo === "push" ? celular : undefined,
+        metodo: "push",
+        celular,
       });
+      opAviso.current = crypto.randomUUID();
       if (data.qr_imagen) {
-        setImagen(data.qr_imagen);
-        sessionStorage.setItem(`poch-qr-${pedidoId}`, data.qr_imagen);
+        const src = srcQr(data.qr_imagen);
+        guardarQr(pedidoId, src);
+        setImagen(src);
       }
-      if (data.ya_enviado) setAvisoEnviado(true);
-      if (data.pendiente_de_imagen) setError("El código ya se generó. Si no lo ve, genere otro.");
-      operacionCobro.current = crypto.randomUUID();
+      setCelular("");
+      setAviso(false);
+      setAvisoEnviado(Boolean(data.ya_enviado) || true);
     } catch (fallo) {
-      setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo generar el cobro.");
+      setErrorModal(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo enviar el aviso.");
+      opAviso.current = crypto.randomUUID();
     } finally {
       setOcupado(false);
     }
   }
 
-  async function cancelar() {
+  async function devolver() {
     if (!sesion) return;
+    if (motivo.trim().length < 5) {
+      setErrorModal("Escriba un motivo de al menos 5 caracteres.");
+      return;
+    }
     setOcupado(true);
     try {
-      await llamar("cancelar-pedido", sesion.token, { operacion_id: operacionCancelar.current, pedido_id: pedidoId });
-      navegar("/repartidor");
+      await llamar("devolver-documento", sesion.token, {
+        operacion_id: opDevolver.current,
+        pedido_id: pedidoId,
+        motivo: motivo.trim(),
+      });
+      borrarQr(pedidoId);
+      navegar(`/repartidor/estado/${pedidoId}`, { replace: true });
     } catch (fallo) {
-      setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo cancelar.");
+      setErrorModal(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo cancelar el cobro.");
+      opDevolver.current = crypto.randomUUID();
       setOcupado(false);
     }
   }
 
-  const qrVencido = Boolean(imagen) && segundos === 0;
+  const pedido = estado?.pedido;
+  const intento = Math.max(1, estado?.intentos_desde_apertura || 1);
+  const poco = segundos <= 60;
 
   return (
-    <Marco titulo="Cobrar" enlaces={[{ a: "/repartidor", texto: "Pedidos" }]}>
-      <p className="text-sm text-marino/70">Folio {estado?.pedido.folio} · {estado?.pedido.cliente_alias}</p>
-      <p className="mt-2 text-center text-4xl font-semibold" aria-live="polite">{estado ? pesos(estado.cobro?.importe ?? estado.pedido.total) : "…"}</p>
-      <p className="mt-1 text-center text-lg">{estado?.cobro?.concepto}</p>
-      <p className="mt-2 text-center text-sm font-medium">{etiqueta(estado?.pedido.estado)}</p>
-      {imagen && (
-        <figure className="mx-auto mt-4 max-w-xs rounded-3xl bg-white p-4">
-          <img src={`data:image/png;base64,${imagen}`} alt="Código QR de CoDi para este cobro" className="w-full" />
-          <figcaption className="mt-2 text-center text-2xl font-semibold" aria-live="polite">
-            {qrVencido ? "El código venció" : segundosEnReloj(segundos)}
-          </figcaption>
-        </figure>
-      )}
-      <div className="mt-4 space-y-3">
+    <CascaronRepartidor titulo="Cobrar" atras="/repartidor">
+      <div className="pad">
         <Aviso texto={error} />
-        {avisoEnviado && <p role="status">El aviso se envió al celular. El número no se guardó.</p>}
-        {(!imagen || qrVencido) && (
-          <Boton onClick={() => void generar("qr")} ocupado={ocupado}>
-            {imagen ? "Generar otro código" : "Mostrar código QR"}
-          </Boton>
-        )}
-        <button type="button" className="text-sm font-medium text-jade" onClick={() => setMostrarCelular((actual) => !actual)}>
-          Enviar aviso al celular del cliente
-        </button>
-        {mostrarCelular && (
-          <div className="space-y-3 rounded-2xl border border-linea bg-white p-4">
-            <p className="text-sm leading-6">El número solo se usa para enviar el aviso. No se guarda.</p>
-            <label className="block text-sm font-medium" htmlFor="celular">
-              Celular a 10 dígitos
-              <input
-                id="celular"
-                inputMode="numeric"
-                autoComplete="off"
-                value={celular}
-                onChange={(evento) => setCelular(evento.target.value.replace(/\D/g, "").slice(0, 10))}
-                className="mt-1 min-h-14 w-full rounded-2xl border border-linea px-4 text-lg"
-              />
-            </label>
-            <Boton secundario onClick={() => void generar("push")} ocupado={ocupado || celular.length !== 10}>
-              Enviar aviso
-            </Boton>
+        {avisoEnviado ? <Aviso tono="ok">Aviso enviado. El número no se guardó. El QR sigue vigente.</Aviso> : null}
+        <div className="grande" style={{ padding: "0 0 var(--e3)" }}>
+          <div className="muted">Remisión {pedido?.folio_documento ?? pedido?.folio ?? "…"} · {pedido?.cliente_alias}</div>
+          <div className="monto" style={{ fontSize: 48 }}>{pedido ? pesos(estado?.cobro?.importe ?? pedido.total) : "…"}</div>
+        </div>
+        <Qr src={imagen} />
+        <p className="muted" style={{ textAlign: "center" }}>Pida al cliente que escanee el código con la app de su banco.</p>
+        <div className={`cuenta${poco ? " poco" : ""}`} aria-live="off">{segundosEnReloj(segundos)}</div>
+        <div className={`barra${poco ? " poco" : ""}`} style={{ margin: "6px 0 var(--e3)" }}>
+          <i style={{ width: `${Math.min(100, (segundos / 360) * 100)}%` }} />
+        </div>
+        <div className="fila" style={{ marginBottom: "var(--e3)" }}>
+          <Insignia tipo="pendiente" />
+          <Insignia tipo="aviso">Intento {intento} de 5</Insignia>
+        </div>
+        <div className="fila" style={{ marginBottom: "var(--e3)" }}>
+          <span className="muted">Si el QR vence, podrá generar otro.</span>
+          <Pips intento={intento} />
+        </div>
+        <Vidrio>
+          <div className="fila">
+            <span className="muted">Folio de la remisión</span>
+            <b>{pedido?.folio_documento ?? pedido?.folio ?? "—"}</b>
           </div>
-        )}
-        {estado?.pedido.estado === "por_cobrar" && (
-          <Boton secundario onClick={() => void cancelar()} ocupado={ocupado}>
-            Cancelar pedido
-          </Boton>
-        )}
-        <Link to="/repartidor" className="block text-center text-sm">
-          Volver a los pedidos
-        </Link>
+        </Vidrio>
+        <Boton variante="secundario" onClick={() => { setErrorModal(""); setAviso(true); }}>
+          📲 Enviar aviso al celular del cliente
+        </Boton>
+        <div className="margen-top">
+          <Boton variante="peligro" onClick={() => { setErrorModal(""); setCancelar(true); }}>Cancelar cobro</Boton>
+        </div>
       </div>
-    </Marco>
+      <Modal abierto={aviso} titulo="Aviso al celular del cliente" alCerrar={() => setAviso(false)}>
+        <p className="muted">Escriba los 10 dígitos. Solo se usa para enviar el aviso; no se guarda.</p>
+        <label htmlFor="tel">Celular (10 dígitos)</label>
+        <input
+          id="tel"
+          type="tel"
+          inputMode="numeric"
+          autoComplete="off"
+          maxLength={10}
+          placeholder="10 dígitos"
+          value={celular}
+          onChange={(evento) => setCelular(evento.target.value.replace(/\D/g, "").slice(0, 10))}
+        />
+        <Aviso texto={errorModal} />
+        <p className="muted">Si el QR sigue vigente, el servidor puede pedir que espere a que venza.</p>
+        <Boton ocupado={ocupado} onClick={() => void enviarAviso()}>Enviar aviso</Boton>
+        <div className="margen-top">
+          <Boton variante="secundario" onClick={() => setAviso(false)}>Cerrar</Boton>
+        </div>
+      </Modal>
+      <Modal abierto={cancelar} titulo="¿Cancelar este cobro?" alCerrar={() => setCancelar(false)}>
+        <p>La remisión queda devuelta y se avisa a administración. Si el cliente ya pagó, avise a administración.</p>
+        <label htmlFor="motivo-cancelar">Motivo (mínimo 5 caracteres)</label>
+        <textarea id="motivo-cancelar" value={motivo} onChange={(evento) => setMotivo(evento.target.value)} />
+        <Aviso texto={errorModal} />
+        <Boton variante="peligro" ocupado={ocupado} onClick={() => void devolver()}>Sí, cancelar cobro</Boton>
+        <div className="margen-top">
+          <Boton variante="secundario" onClick={() => setCancelar(false)}>No, volver</Boton>
+        </div>
+      </Modal>
+    </CascaronRepartidor>
   );
 }

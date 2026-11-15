@@ -1,131 +1,79 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Aviso, Boton, Marco } from "../../componentes/Marco";
+import { Aviso } from "../../componentes/Aviso";
+import { AvisosReorden } from "../../componentes/AvisosReorden";
+import { Boton } from "../../componentes/Boton";
+import { CascaronAdmin } from "../../componentes/CascaronAdmin";
+import { Insignia } from "../../componentes/Insignia";
+import { Modal } from "../../componentes/Modal";
+import { Tabla } from "../../componentes/Tabla";
 import { useSesion } from "../../contexto/Sesion";
 import { ErrorDeApi, llamar } from "../../lib/api";
-import { etiqueta, fechaHora, pesos } from "../../lib/formato";
-
-type Indicadores = { cobrado: number; pendiente: number; vencido: number; por_resolver: number; recuperados: number; devuelto: number };
-type Pedido = {
-  id: string;
-  folio: number;
-  cliente_alias: string;
-  total: number;
-  estado: string;
-  repartidor: string;
-  cobro: { estado: string; importe: number } | null;
-};
-type Entrega = {
-  pedido_id: string;
-  folio: number | null;
-  cliente: string | null;
-  repartidor: string | null;
-  total: number | null;
-  recibe_nombre: string;
-};
-type Reorden = { id: number; ocurrio_en: string; repartidor: string; detalle: { motivo?: string; antes?: string[]; despues?: string[] } };
-type Respuesta = {
-  indicadores: Indicadores;
-  repartidores: Array<{ repartidor_id: string; nombre: string }>;
-  pedidos: Pedido[];
-  entregas_por_revisar: Entrega[];
-  reordenamientos: Reorden[];
-};
-type Prueba = { prueba: string; ok: boolean; detalle: string };
+import { fechaLarga, pesos } from "../../lib/formato";
+import { insigniaDeParada } from "../../lib/parada";
+import type { Tablero as Datos } from "../../lib/tipos";
 
 export default function Tablero() {
   const { sesion } = useSesion();
-  const [datos, setDatos] = useState<Respuesta | null>(null);
-  const [estado, setEstado] = useState("");
-  const [repartidor, setRepartidor] = useState("");
+  const [datos, setDatos] = useState<Datos | null>(null);
   const [error, setError] = useState("");
-  const [nota, setNota] = useState("");
-  const [pruebas, setPruebas] = useState<Prueba[]>([]);
   const [ocupado, setOcupado] = useState(false);
-  const [vista, setVista] = useState<{ pedidoId: string; tipo: "foto" | "firma"; url: string } | null>(null);
+  const [notas, setNotas] = useState<Record<string, string>>({});
+  const [vista, setVista] = useState<{ tipo: string; url: string } | null>(null);
+
+  function cargar() {
+    if (!sesion) return;
+    llamar<Datos>("tablero", sesion.token)
+      .then(setDatos)
+      .catch((fallo: unknown) => setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo cargar el tablero."));
+  }
 
   useEffect(() => {
-    if (!sesion) return;
-    let activo = true;
-    const cargar = () => {
-      llamar<Respuesta>("tablero", sesion.token, {
-        estado: estado || undefined,
-        repartidor_id: repartidor || undefined,
-      })
-        .then((data) => {
-          if (activo) setDatos(data);
-        })
-        .catch((fallo: unknown) => {
-          if (activo) setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo cargar el tablero.");
-        });
-    };
     cargar();
     const reloj = setInterval(cargar, 5000);
-    return () => {
-      activo = false;
-      clearInterval(reloj);
-    };
-  }, [sesion, estado, repartidor]);
-
-  useEffect(() => {
-    if (!sesion) return;
-    let detenido = false;
-    const conciliar = () => {
-      if (detenido) return;
-      llamar<{ recuperadas: number }>("conciliar-con-pey", sesion.token)
-        .then((data) => setNota(`Conciliación automática. Recuperados: ${data.recuperadas}.`))
-        .catch((fallo: unknown) => {
-          const mensaje = fallo instanceof ErrorDeApi ? fallo.message : "";
-          if (mensaje.includes("no está configurado")) {
-            detenido = true;
-            setNota("La conciliación con pey no está configurada. Falta PEY_API_KEY.");
-          }
-        });
-    };
-    const reloj = setInterval(conciliar, 60_000);
-    return () => {
-      detenido = true;
-      clearInterval(reloj);
-    };
+    return () => clearInterval(reloj);
   }, [sesion]);
 
-  async function verificar() {
-    if (!sesion) return;
-    setOcupado(true);
-    try {
-      const data = await llamar<{ pruebas: Prueba[] }>("verificar-integridad", sesion.token);
-      setPruebas(data.pruebas);
-    } catch (fallo) {
-      setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo verificar.");
-    } finally {
-      setOcupado(false);
+  const paradas = (datos?.rutas ?? []).flatMap((ruta) => ruta.paradas.map((parada) => ({ ...parada, repartidor: ruta.repartidor })));
+  const porCobrar = paradas.filter((parada) => parada.estado === "pendiente" || parada.estado === "por_cobrar").length;
+  const cobradas = paradas.filter((parada) => parada.estado === "pagado" || parada.estado === "entregado").length;
+  const nombres = new Map<string, string>();
+  for (const ruta of datos?.rutas ?? []) {
+    for (const parada of ruta.paradas) {
+      if (parada.folio_documento) nombres.set(parada.folio_documento, parada.cliente);
     }
   }
+  for (const pedido of datos?.pedidos ?? []) {
+    if (pedido.folio_documento) nombres.set(pedido.folio_documento, pedido.cliente_alias);
+  }
+  const revision = new Set((datos?.entregas_por_revisar ?? []).map((entrega) => entrega.pedido_id));
 
   async function verEvidencia(pedidoId: string, tipo: "foto" | "firma") {
     if (!sesion) return;
     try {
       const data = await llamar<{ url: string }>("evidencia-url", sesion.token, { pedido_id: pedidoId, tipo });
-      setVista({ pedidoId, tipo, url: data.url });
+      setVista({ tipo, url: data.url });
     } catch (fallo) {
       setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo abrir la evidencia.");
     }
   }
 
-  async function marcarRevisada(pedidoId: string) {
+  async function revisar(pedidoId: string) {
     if (!sesion) return;
-    const texto = prompt("Nota de revisión (mínimo 5 caracteres)");
-    if (!texto || texto.trim().length < 5) return;
+    const nota = (notas[pedidoId] ?? "").trim();
+    if (nota.length < 5) {
+      setError("Escriba una nota de al menos 5 caracteres.");
+      return;
+    }
     setOcupado(true);
+    setError("");
     try {
       await llamar("revisar-entrega", sesion.token, {
         operacion_id: crypto.randomUUID(),
         pedido_id: pedidoId,
-        nota: texto.trim(),
+        nota,
       });
-      setDatos((actual) => actual
-        ? { ...actual, entregas_por_revisar: actual.entregas_por_revisar.filter((e) => e.pedido_id !== pedidoId) }
-        : actual);
+      cargar();
     } catch (fallo) {
       setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo marcar la revisión.");
     } finally {
@@ -133,164 +81,142 @@ export default function Tablero() {
     }
   }
 
-  const indicadores = datos?.indicadores;
+  const dia = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
 
   return (
-    <Marco
-      titulo="Tablero"
-      ancho="max-w-6xl"
-      enlaces={[
-        { a: "/admin/remisiones", texto: "Remisiones y rutas" },
-        { a: "/admin/pagos", texto: "Pagos por resolver" },
-      ]}
-    >
-      <section className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6" aria-label="Indicadores del día">
-        <Tarjeta nombre="Cobrado hoy" valor={pesos(indicadores?.cobrado ?? 0)} />
-        <Tarjeta nombre="Pendiente" valor={pesos(indicadores?.pendiente ?? 0)} />
-        <Tarjeta nombre="Devuelto" valor={pesos(indicadores?.devuelto ?? 0)} />
-        <Tarjeta nombre="Vencidos hoy" valor={String(indicadores?.vencido ?? 0)} />
-        <Tarjeta nombre="Por resolver" valor={String(indicadores?.por_resolver ?? 0)} />
-        <Tarjeta nombre="Recuperados" valor={String(indicadores?.recuperados ?? 0)} />
-      </section>
-
-      <h2 className="mt-8 text-xl font-semibold">Entregas por revisar</h2>
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="text-marino/70">
-              <th className="py-2 font-medium">Folio</th>
-              <th className="py-2 font-medium">Cliente</th>
-              <th className="py-2 font-medium">Repartidor</th>
-              <th className="py-2 font-medium">Entrega</th>
-              <th className="py-2 font-medium">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(datos?.entregas_por_revisar ?? []).map((entrega) => (
-              <tr key={entrega.pedido_id} className="border-t border-linea">
-                <td className="py-3">{entrega.folio}</td>
-                <td>{entrega.cliente}</td>
-                <td>{entrega.repartidor}</td>
-                <td>
-                  Foto y firma{" "}
-                  <button type="button" className="font-medium text-jade" onClick={() => void verEvidencia(entrega.pedido_id, "foto")}>Ver</button>
-                  {" · "}
-                  <button type="button" className="font-medium text-jade" onClick={() => void verEvidencia(entrega.pedido_id, "firma")}>Firma</button>
-                </td>
-                <td>
-                  <button type="button" className="rounded-xl border border-linea px-3 py-2" onClick={() => void marcarRevisada(entrega.pedido_id)} disabled={ocupado}>
-                    Marcar revisada
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <CascaronAdmin actual="tablero">
+      <h1>Tablero del día</h1>
+      <div className="muted">{fechaLarga(dia)} · se actualiza solo</div>
+      <Aviso texto={error} />
+      <AvisosReorden filas={datos?.reordenamientos ?? []} nombres={nombres} />
+      <div className="kpis">
+        <article className="kpi">
+          <div className="v">{porCobrar}</div>
+          <div className="l"><Insignia tipo="porcobrar" /> remisiones</div>
+        </article>
+        <article className="kpi">
+          <div className="v">{cobradas}</div>
+          <div className="l"><Insignia tipo="pagado" /> remisiones</div>
+        </article>
+        <article className="kpi">
+          <div className="v">{datos?.indicadores.vencido ?? 0}</div>
+          <div className="l"><Insignia tipo="vencido" /> remisiones</div>
+        </article>
+        <article className="kpi hero">
+          <div className="v">{pesos(datos?.indicadores.cobrado ?? 0)}</div>
+          <div className="l">Total cobrado</div>
+        </article>
       </div>
-
-      <h2 className="mt-8 text-xl font-semibold">Reordenamientos recientes</h2>
-      <ul className="mt-2 space-y-2">
-        {(datos?.reordenamientos ?? []).map((fila) => (
-          <li key={fila.id} className="rounded-2xl border border-linea bg-white p-3 text-sm">
-            {fechaHora(fila.ocurrio_en)} · {fila.repartidor} · {fila.detalle?.motivo ?? "Sin motivo"}
-          </li>
-        ))}
-        {(datos?.reordenamientos ?? []).length === 0 && <li className="text-sm text-marino/70">Sin reordenamientos hoy.</li>}
-      </ul>
-
-      <div className="mt-8 flex flex-wrap gap-3">
-        <label className="text-sm font-medium" htmlFor="filtro-estado">
-          Estado
-          <select id="filtro-estado" value={estado} onChange={(evento) => setEstado(evento.target.value)} className="mt-1 block min-h-12 rounded-xl border border-linea bg-white px-3">
-            <option value="">Todos</option>
-            <option value="pendiente">Pendiente</option>
-            <option value="por_cobrar">Por cobrar</option>
-            <option value="pagado">Pagado</option>
-            <option value="entregado">Entregado</option>
-            <option value="devuelto">Devuelto</option>
-            <option value="cancelado">Cancelado</option>
-          </select>
-        </label>
-        <label className="text-sm font-medium" htmlFor="filtro-repartidor">
-          Repartidor
-          <select id="filtro-repartidor" value={repartidor} onChange={(evento) => setRepartidor(evento.target.value)} className="mt-1 block min-h-12 rounded-xl border border-linea bg-white px-3">
-            <option value="">Todos</option>
-            {(datos?.repartidores ?? []).map((fila) => (
-              <option key={fila.repartidor_id} value={fila.repartidor_id}>{fila.nombre}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="text-marino/70">
-              <th className="py-2 font-medium">Folio</th>
-              <th className="py-2 font-medium">Cliente</th>
-              <th className="py-2 font-medium">Repartidor</th>
-              <th className="py-2 font-medium">Total</th>
-              <th className="py-2 font-medium">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(datos?.pedidos ?? []).map((pedido) => (
-              <tr key={pedido.id} className="border-t border-linea">
-                <td className="py-3">
-                  <Link className="font-semibold text-jade" to={`/admin/pedido/${pedido.id}`}>{pedido.folio}</Link>
-                </td>
-                <td>{pedido.cliente_alias}</td>
-                <td>{pedido.repartidor}</td>
-                <td>{pesos(pedido.total)}</td>
-                <td>{etiqueta(pedido.estado)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <Boton onClick={() => void verificar()} ocupado={ocupado}>Verificar integridad</Boton>
-        <Boton
-          secundario
-          onClick={() => {
-            void llamar<{ recuperadas: number }>("conciliar-con-pey", sesion!.token)
-              .then((d) => setNota(`Recuperados: ${d.recuperadas}`))
-              .catch((f: unknown) => setError(f instanceof ErrorDeApi ? f.message : "Error"));
-          }}
-          ocupado={ocupado}
-        >
-          Conciliar con pey
-        </Boton>
-      </div>
-      {nota && <p className="mt-3" role="status">{nota}</p>}
-      <div className="mt-3"><Aviso texto={error} /></div>
-      {pruebas.length > 0 && (
-        <ul className="mt-4 space-y-2" aria-label="Cinco verificaciones de integridad">
-          {pruebas.map((prueba) => (
-            <li key={prueba.prueba} className={`rounded-2xl px-4 py-3 ${prueba.ok ? "bg-white text-jade" : "bg-ambar-fondo text-ambar"}`}>
-              <span className="font-semibold">{prueba.ok ? "En orden" : "Con diferencia"}. </span>
-              {prueba.prueba}. {prueba.detalle}
-            </li>
-          ))}
-        </ul>
-      )}
-      {vista && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-marino/70 p-4" role="dialog" aria-modal="true">
-          <div className="max-h-[90vh] max-w-lg overflow-auto rounded-2xl bg-white p-4">
-            <p className="font-semibold">{vista.tipo === "foto" ? "Foto" : "Firma"} (URL 60 s)</p>
-            <img src={vista.url} alt={vista.tipo} className="mt-3 w-full" />
-            <button type="button" className="mt-3 min-h-12 w-full rounded-2xl border border-linea" onClick={() => setVista(null)}>Cerrar</button>
-          </div>
+      <div className="dos">
+        <div>
+          <h2>Avance de rutas</h2>
+          {(datos?.rutas ?? []).map((ruta) => {
+            const hechas = ruta.paradas.filter((parada) => parada.estado === "entregado").length;
+            const ancho = ruta.paradas.length ? (hechas / ruta.paradas.length) * 100 : 0;
+            return (
+              <div key={ruta.id} className="card">
+                <div className="fila">
+                  <b>{ruta.repartidor}</b>
+                  <span className="muted">{hechas} de {ruta.paradas.length} entregadas</span>
+                </div>
+                <div className="mini margen-top" role="img" aria-label={`${hechas} de ${ruta.paradas.length} paradas`}>
+                  <i style={{ width: `${ancho}%` }} />
+                </div>
+              </div>
+            );
+          })}
+          {(datos?.rutas ?? []).length === 0 ? <p className="muted">No hay rutas abiertas hoy.</p> : null}
         </div>
-      )}
-    </Marco>
+        <div>
+          <h2>Resumen por repartidor</h2>
+          <Tabla>
+            <thead>
+              <tr><th>Repartidor</th><th className="r">Remisiones</th><th className="r">Cobrado</th></tr>
+            </thead>
+            <tbody>
+              {(datos?.rutas ?? []).map((ruta) => {
+                const cobrado = ruta.paradas
+                  .filter((parada) => parada.estado === "pagado" || parada.estado === "entregado")
+                  .reduce((suma, parada) => suma + Number(parada.total), 0);
+                return (
+                  <tr key={ruta.id}>
+                    <td>{ruta.repartidor}</td>
+                    <td className="r">{ruta.paradas.length}</td>
+                    <td className="r"><b>{pesos(cobrado)}</b></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Tabla>
+        </div>
+      </div>
+      <h2 className="margen-top-lg">Entregas pendientes de revisión</h2>
+      {(datos?.entregas_por_revisar ?? []).length === 0 ? <p className="muted">No hay entregas con excepción por revisar.</p> : null}
+      {(datos?.entregas_por_revisar ?? []).map((entrega) => (
+        <article key={entrega.pedido_id} className="card">
+          <div className="fila">
+            <b>Remisión {entrega.folio ?? "—"} · {entrega.cliente}</b>
+            <Insignia tipo="aviso">Pendiente de revisión</Insignia>
+          </div>
+          <p className="muted">{entrega.repartidor} · recibió {entrega.recibe_nombre}{entrega.total != null ? ` · ${pesos(entrega.total)}` : ""}</p>
+          <div className="acciones margen-top">
+            {entrega.foto_ruta ? (
+              <Boton chico variante="secundario" onClick={() => void verEvidencia(entrega.pedido_id, "foto")}>Ver foto</Boton>
+            ) : null}
+            {entrega.firma_ruta ? (
+              <Boton chico variante="secundario" onClick={() => void verEvidencia(entrega.pedido_id, "firma")}>Ver firma</Boton>
+            ) : null}
+          </div>
+          <label className="margen-top" htmlFor={`nota-${entrega.pedido_id}`}>
+            Nota de revisión (mínimo 5 caracteres)
+            <textarea
+              id={`nota-${entrega.pedido_id}`}
+              value={notas[entrega.pedido_id] ?? ""}
+              onChange={(evento) => setNotas((actual) => ({ ...actual, [entrega.pedido_id]: evento.target.value }))}
+            />
+          </label>
+          <Boton chico ocupado={ocupado} onClick={() => void revisar(entrega.pedido_id)}>Marcar revisada</Boton>
+        </article>
+      ))}
+      <h2 className="margen-top-lg">Remisiones del día</h2>
+      <Tabla>
+        <thead>
+          <tr>
+            <th>Remisión</th><th>Cliente</th><th>Repartidor</th><th className="r">Parada</th>
+            <th className="r">Importe</th><th>Cobro</th><th>Entrega</th>
+          </tr>
+        </thead>
+        <tbody>
+          {paradas.map((parada) => (
+            <tr key={parada.id}>
+              <td>
+                <Link className="enlace" to={`/admin/pedido/${parada.id}`}><b>{parada.folio_documento ?? "—"}</b></Link>
+                {parada.orden_compra ? <div className="muted">{parada.orden_compra}</div> : null}
+              </td>
+              <td>{parada.cliente}</td>
+              <td>{parada.repartidor}</td>
+              <td className="r">{parada.parada}</td>
+              <td className="r"><b>{pesos(parada.total)}</b></td>
+              <td><Insignia tipo={insigniaDeParada({ estado: parada.estado })} /></td>
+              <td>{celdaEntrega(parada.estado, revision.has(parada.id))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </Tabla>
+      <Modal abierto={Boolean(vista)} titulo={vista?.tipo === "firma" ? "Firma" : "Foto"} alCerrar={() => setVista(null)}>
+        <p className="muted">La dirección firmada dura 60 segundos y no se guarda en este navegador.</p>
+        {vista ? <img className="ev" src={vista.url} alt={vista.tipo === "firma" ? "Firma de quien recibe" : "Foto de la entrega"} /> : null}
+        <div className="margen-top">
+          <Boton variante="secundario" onClick={() => setVista(null)}>Cerrar</Boton>
+        </div>
+      </Modal>
+    </CascaronAdmin>
   );
 }
 
-function Tarjeta({ nombre, valor }: { nombre: string; valor: string }) {
-  return (
-    <article className="rounded-2xl border border-linea bg-white p-4">
-      <h2 className="text-sm font-medium text-marino/70">{nombre}</h2>
-      <p className="mt-1 text-xl font-semibold">{valor}</p>
-    </article>
-  );
+function celdaEntrega(estado: string, pendiente: boolean) {
+  if (pendiente) return <Insignia tipo="aviso">Pendiente de revisión</Insignia>;
+  if (estado === "pagado") return <Insignia tipo="aviso">Sin entregar</Insignia>;
+  if (estado === "entregado") return <span className="muted">Entregada</span>;
+  return <span className="muted">—</span>;
 }
