@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Aviso } from "../../componentes/Aviso";
 import { Boton } from "../../componentes/Boton";
 import { CascaronRepartidor } from "../../componentes/CascaronRepartidor";
@@ -7,6 +7,7 @@ import { Insignia } from "../../componentes/Insignia";
 import { useSesion } from "../../contexto/Sesion";
 import { ErrorDeApi, llamar } from "../../lib/api";
 import { pesos } from "../../lib/formato";
+import { elegirRuta } from "../../lib/ruta";
 import {
   MOTIVOS_ORDEN,
   insigniaDeParada,
@@ -19,6 +20,8 @@ import type { ParadaRuta, RespuestaRuta } from "../../lib/tipos";
 export default function Orden() {
   const { sesion } = useSesion();
   const navegar = useNavigate();
+  const [parametros] = useSearchParams();
+  const rutaPedida = parametros.get("ruta");
   const [rutaId, setRutaId] = useState("");
   const [fijas, setFijas] = useState<ParadaRuta[]>([]);
   const [orden, setOrden] = useState<ParadaRuta[]>([]);
@@ -32,9 +35,10 @@ export default function Orden() {
   useEffect(() => {
     if (!sesion) return;
     llamar<RespuestaRuta>("mi-ruta", sesion.token)
-      .then((datos) => {
-        if (!datos.ruta) {
-          setError("No hay una ruta abierta para hoy.");
+      .then((respuesta) => {
+        const datos = elegirRuta(respuesta, rutaPedida);
+        if (!datos) {
+          setError("No hay una ruta abierta.");
           return;
         }
         setRutaId(datos.ruta.id);
@@ -45,7 +49,7 @@ export default function Orden() {
         setFijas(datos.paradas.filter((parada) => parada.estado !== "pendiente" && parada.estado !== "por_cobrar"));
       })
       .catch((fallo: unknown) => setError(fallo instanceof ErrorDeApi ? fallo.message : "No se pudo cargar la ruta."));
-  }, [sesion]);
+  }, [sesion, rutaPedida]);
 
   function mover(indice: number, delta: number) {
     const destino = indice + delta;

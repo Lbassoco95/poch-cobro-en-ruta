@@ -8,6 +8,7 @@ import { useSesion } from "../../contexto/Sesion";
 import { ErrorDeApi, llamar } from "../../lib/api";
 import { fechaLarga, pesos } from "../../lib/formato";
 import { insigniaDeParada, piezasDe, textoBotonParada, textoPiezas } from "../../lib/parada";
+import { gruposDe } from "../../lib/ruta";
 import type { ParadaRuta, RespuestaRuta } from "../../lib/tipos";
 
 export default function MiRuta() {
@@ -48,47 +49,50 @@ export default function MiRuta() {
     zona.scrollTop = Math.max(0, top - 12);
   }, [datos?.siguiente_parada]);
 
-  const paradas = datos?.paradas ?? [];
-  const movibles = paradas.filter((parada) => parada.estado === "pendiente" || parada.estado === "por_cobrar");
-  const entregadas = datos?.resumen.entregadas ?? 0;
-  const total = paradas.length;
-  const avance = total ? (entregadas / total) * 100 : 0;
+  const grupos = gruposDe(datos);
 
   return (
     <CascaronRepartidor titulo="Mi ruta" pestana="ruta">
       <div className="pad">
         <Aviso texto={error} />
         {avisoOrden ? <Aviso tono="ok">{avisoOrden}</Aviso> : null}
-        {!datos?.ruta && !error ? <p>No hay una ruta abierta para hoy.</p> : null}
-        {datos?.ruta ? (
-          <>
-            <Vidrio destacado>
-              <div className="hielo">{fechaLarga(datos.dia)} · {total} paradas</div>
-              <div className="fila margen-top">
-                <div>
-                  <div className="monto" style={{ fontSize: 30 }}>{entregadas} de {total}</div>
-                  <div className="hielo">entregadas</div>
+        {!grupos.length && !error ? <p>No hay una ruta abierta.</p> : null}
+        {grupos.map((grupo) => {
+          const movibles = grupo.paradas.filter((parada) => parada.estado === "pendiente" || parada.estado === "por_cobrar");
+          const entregadas = grupo.resumen.entregadas;
+          const total = grupo.paradas.length;
+          const avance = total ? (entregadas / total) * 100 : 0;
+          return (
+            <section key={grupo.ruta.id} aria-label={`Ruta ${grupo.ruta.nombre}`} className="margen-top">
+              <h2 style={{ marginBottom: 6 }}>{grupo.ruta.nombre}</h2>
+              <Vidrio destacado>
+                <div className="hielo">{grupo.ruta.fecha ? fechaLarga(grupo.ruta.fecha) : fechaLarga(datos?.dia)} · {total} paradas</div>
+                <div className="fila margen-top">
+                  <div>
+                    <div className="monto" style={{ fontSize: 30 }}>{entregadas} de {total}</div>
+                    <div className="hielo">entregadas</div>
+                  </div>
+                  <div className="derecha">
+                    <div className="hielo">Cobrado</div>
+                    <div className="monto" style={{ fontSize: 22 }}>{pesos(grupo.resumen.cobrado)}</div>
+                    <div className="hielo">Por cobrar {pesos(grupo.resumen.por_cobrar)}</div>
+                  </div>
                 </div>
-                <div className="derecha">
-                  <div className="hielo">Cobrado</div>
-                  <div className="monto" style={{ fontSize: 22 }}>{pesos(datos.resumen.cobrado)}</div>
-                  <div className="hielo">Por cobrar {pesos(datos.resumen.por_cobrar)}</div>
+                <div className="barra margen-top" role="img" aria-label={`${entregadas} de ${total} paradas entregadas`}>
+                  <i style={{ width: `${avance}%` }} />
                 </div>
+              </Vidrio>
+              {movibles.length >= 2 ? (
+                <Link className="btn sec" to={`/repartidor/orden?ruta=${grupo.ruta.id}`}>↕ Cambiar orden de paradas</Link>
+              ) : null}
+              <div className="margen-top">
+                {grupo.paradas.map((parada) => (
+                  <ParadaCard key={parada.id} parada={parada} siguiente={grupo.siguiente_parada === parada.id} />
+                ))}
               </div>
-              <div className="barra margen-top" role="img" aria-label={`${entregadas} de ${total} paradas entregadas`}>
-                <i style={{ width: `${avance}%` }} />
-              </div>
-            </Vidrio>
-            {movibles.length >= 2 ? (
-              <Link className="btn sec" to="/repartidor/orden">↕ Cambiar orden de paradas</Link>
-            ) : null}
-            <div className="margen-top">
-              {paradas.map((parada) => (
-                <ParadaCard key={parada.id} parada={parada} siguiente={datos.siguiente_parada === parada.id} />
-              ))}
-            </div>
-          </>
-        ) : null}
+            </section>
+          );
+        })}
       </div>
     </CascaronRepartidor>
   );

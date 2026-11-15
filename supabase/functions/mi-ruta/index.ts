@@ -1,28 +1,39 @@
 import { exigir } from "../_shared/auth.ts";
 import { inicioDelDiaCdmx } from "../_shared/db.ts";
 import { json, servir } from "../_shared/http.ts";
+import { armarGrupos } from "../_shared/rutas.ts";
 
 servir(async (req) => {
   if (req.method !== "GET" && req.method !== "POST") return json(405, { error: "Método no permitido." });
   const { cliente, perfil } = await exigir(req, ["repartidor"]);
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
 
-  const { data: ruta, error } = await cliente
-    .from("rutas")
-    .select("id, nombre, fecha, estado, repartidor_id")
-    .eq("repartidor_id", perfil.user_id)
-    .eq("fecha", hoy)
-    .eq("estado", "abierta")
-    .order("creado_en", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Todas las rutas abiertas del repartidor, de cualquier día: una ruta sigue vigente hasta cerrarse.
+  const { data: rutas, error } = await vacioSiFalla(
+    cliente
+      .from("rutas")
+      .select("id, nombre, fecha, estado, repartidor_id")
+      .eq("repartidor_id", perfil.user_id)
+      .eq("estado", "abierta")
+      .order("fecha", { ascending: false })
+      .order("creado_en", { ascending: false }),
+  );
   if (error) throw new Error(error.message);
-  if (!ruta) return json(200, { ruta: null, paradas: [], resumen: { entregadas: 0, cobrado: 0, por_cobrar: 0 }, siguiente_parada: null });
+  if (!rutas.length) {
+    return json(200, {
+      ruta: null,
+      paradas: [],
+      resumen: { entregadas: 0, cobrado: 0, por_cobrar: 0 },
+      siguiente_parada: null,
+      rutas: [],
+      dia: hoy,
+    });
+  }
 
   const { data: paradas, error: errorParadas } = await cliente
     .from("pedidos")
-    .select("id, folio, cliente_alias, total, estado, parada, tipo_documento, folio_documento, orden_compra_ref")
-    .eq("ruta_id", ruta.id)
+    .select("id, folio, cliente_alias, total, estado, parada, ruta_id, tipo_documento, folio_documento, orden_compra_ref")
+    .in("ruta_id", rutas.map((r) => r.id))
     .order("parada", { ascending: true });
   if (errorParadas) throw new Error(errorParadas.message);
 
@@ -76,19 +87,24 @@ servir(async (req) => {
     };
   });
 
-  const resumen = {
-    entregadas: lista.filter((p) => p.estado === "entregado").length,
-    cobrado: lista.filter((p) => p.estado === "pagado" || p.estado === "entregado").reduce((s, p) => s + Number(p.total), 0),
-    por_cobrar: lista.filter((p) => p.estado === "pendiente" || p.estado === "por_cobrar").reduce((s, p) => s + Number(p.total), 0),
-  };
-  const siguiente = lista.find((p) => p.estado === "pendiente" || p.estado === "por_cobrar" || p.estado === "pagado") ?? null;
+  const grupos = armarGrupos(rutas, lista);
+  const primero = grupos[0];
 
   return json(200, {
-    ruta,
-    paradas: lista,
-    resumen,
-    siguiente_parada: siguiente?.id ?? null,
+    // Todas las rutas abiertas, cada una con su resumen y su siguiente parada.
+    rutas: grupos,
+    // Campos de la primera ruta, para pantallas que aún esperan una sola.
+    ruta: primero.ruta,
+    paradas: primero.paradas,
+    resumen: primero.resumen,
+    siguiente_parada: primero.siguiente_parada,
     dia: hoy,
     desde: inicioDelDiaCdmx(),
   });
 });
+
+// Normaliza la respuesta de PostgREST: una lista siempre es una lista.
+async function vacioSiFalla<T>(consulta: PromiseLike<{ data: T[] | null; error: { message: string } | null }>) {
+  const { data, error } = await consulta;
+  return { data: data ?? [], error };
+}

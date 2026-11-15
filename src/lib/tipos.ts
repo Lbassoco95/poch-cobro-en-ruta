@@ -55,10 +55,22 @@ export type ParadaRuta = {
   cobro: { id: string; estado: string; vigente: boolean; segundos: number; importe: number } | null;
 };
 
+export type ResumenRuta = { entregadas: number; cobrado: number; por_cobrar: number };
+
+export type GrupoRuta = {
+  ruta: { id: string; nombre: string; fecha?: string };
+  paradas: ParadaRuta[];
+  resumen: ResumenRuta;
+  siguiente_parada: string | null;
+};
+
 export type RespuestaRuta = {
+  /** Todas las rutas abiertas del repartidor. */
+  rutas?: GrupoRuta[];
+  /** Primera ruta, por compatibilidad con pantallas que esperan una sola. */
   ruta: { id: string; nombre: string; fecha?: string } | null;
   paradas: ParadaRuta[];
-  resumen: { entregadas: number; cobrado: number; por_cobrar: number };
+  resumen: ResumenRuta;
   siguiente_parada: string | null;
   dia?: string;
 };
