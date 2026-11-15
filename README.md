@@ -72,6 +72,8 @@ Resumen vivo en [`docs/PEY-VERIFICADO.md`](docs/PEY-VERIFICADO.md). Verificado c
 - La API de pey es gratuita «por el momento».
 - Precios del catálogo de $0.01 a $0.05.
 - Sin disputas, devoluciones por API, tarjeta, correo, edición de stock en pantalla ni facturación fiscal (siguiente fase).
+- **El recibo al cliente es solo un enlace** (`/c/:clave`) que el repartidor copia o comparte. No hay envío automático por SMS ni por correo: eso queda para la siguiente fase y requiere un proveedor de mensajes y un aviso de privacidad propio, porque implicaría guardar el teléfono o el correo del cliente.
+- La foto de la entrega se comprime en el celular (máximo 1600 px, JPEG calidad 0.8, objetivo menor a 1.5 MB); el bucket `evidencias` admite hasta 5 MB por archivo.
 
 ## Instalación
 
@@ -81,7 +83,7 @@ Resumen vivo en [`docs/PEY-VERIFICADO.md`](docs/PEY-VERIFICADO.md). Verificado c
 4. Despliegue las Edge Functions de `supabase/functions/` y configure los secretos (nombres en `.env.example`).
 5. Registre en pey la URL pública de `webhook-pey`.
 6. Despliegue el frontend (`npm run build`) con `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`.
-7. Copias listas también en `supabase/sql/` (`01-esquema`, `02-logica`, `02b-pago-real`, `02c-intento-unico-vigente`, `02d-ruta-entrega`, `02e-reorden-paradas-orden-compra`, `datos-demo`, `datos-demo-ruta`). Las mismas migraciones están en `supabase/migrations/`.
+7. Copias listas también en `supabase/sql/` (`01-esquema`, `02-logica`, `02b-pago-real`, `02c-intento-unico-vigente`, `02d-ruta-entrega`, `02e-reorden-paradas-orden-compra`, `datos-demo`, `datos-demo-ruta`, `datos-demo-ruta-2`). Las mismas migraciones están en `supabase/migrations/`.
 
 ### Variables
 
@@ -1436,6 +1438,19 @@ select public.reg_bitacora('sembrado', 'datos_demo_cargados', null, null, null, 
 ### Ruta de demostración (opcional)
 
 Después de los bloques 2d y 3, `supabase/sql/datos-demo-ruta.sql` crea la «Ruta Demo Centro» de hoy para Repartidor Uno, con tres documentos inventados. Se puede correr una sola vez por día.
+
+Después, `supabase/sql/datos-demo-ruta-2.sql` agrega tres paradas más (4 a 6) a esa misma ruta, sin tocar las tres primeras, y tampoco repite si ya están cargadas.
+
+**Los seis folios de demostración** (todos inventados, en centavos):
+
+| Parada | Documento | Folio | Cliente | Total |
+| --- | --- | --- | --- | --- |
+| 1 | Remisión | `DEMO-R-001` | Refaccionaria El Tornillo | $0.11 |
+| 2 | Nota de venta | `DEMO-N-014` | Moto Servicio Los Pinos | $0.08 |
+| 3 | Orden de compra | `DEMO-OC-0230` | Taller Hermanos Mena | $0.10 |
+| 4 | Remisión | `DEMO-R-002` | Mecánica Rápida del Norte | $0.08 |
+| 5 | Nota de venta | `DEMO-N-015` | Taller Moto Express | $0.06 |
+| 6 | Orden de compra | `DEMO-OC-0231` | Refaccionaria La Palma | $0.09 |
 
 ## Cómo correr las pruebas
 
