@@ -86,14 +86,33 @@ export function srcQr(imagen: string): string {
 
 const CLAVE_QR = (pedidoId: string) => `poch-qr-${pedidoId}`;
 
-export function guardarQr(pedidoId: string, imagen: string): void {
-  sessionStorage.setItem(CLAVE_QR(pedidoId), imagen);
+/** Guarda la imagen de pey atada al intento que la generó. */
+export function guardarQr(pedidoId: string, imagen: string, intentoId: string | null): void {
+  try {
+    sessionStorage.setItem(CLAVE_QR(pedidoId), JSON.stringify({ intento_id: intentoId, imagen }));
+  } catch {
+    // Sin almacenamiento de sesión no se puede recordar el QR; la pantalla lo avisa.
+  }
 }
 
-export function leerQr(pedidoId: string): string | null {
-  return sessionStorage.getItem(CLAVE_QR(pedidoId));
+/** Devuelve la imagen solo si pertenece al intento indicado: nunca se muestra un QR de otro intento. */
+export function leerQr(pedidoId: string, intentoId: string | null | undefined): string | null {
+  if (!intentoId) return null;
+  try {
+    const crudo = sessionStorage.getItem(CLAVE_QR(pedidoId));
+    if (!crudo) return null;
+    const guardado = JSON.parse(crudo) as { intento_id?: string | null; imagen?: string };
+    if (guardado.intento_id !== intentoId || typeof guardado.imagen !== "string") return null;
+    return guardado.imagen;
+  } catch {
+    return null;
+  }
 }
 
 export function borrarQr(pedidoId: string): void {
-  sessionStorage.removeItem(CLAVE_QR(pedidoId));
+  try {
+    sessionStorage.removeItem(CLAVE_QR(pedidoId));
+  } catch {
+    // Nada que borrar.
+  }
 }

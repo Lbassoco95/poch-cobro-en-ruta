@@ -81,11 +81,11 @@ export default function EstadoCobro() {
     setOcupado(true);
     setError("");
     try {
+      // El QR anterior se descarta desde el primer momento: no debe verse una imagen vieja.
+      borrarQr(pedidoId);
       let cobroId = estado.cobro?.id;
-      const vigente = Boolean(
-        estado.cobro && ["emitido", "en_proceso"].includes(estado.cobro.estado) && new Date(estado.cobro.vigencia_hasta).getTime() > Date.now(),
-      );
-      if (!vigente) {
+      // Si ya hay cobro, el servidor decide: reabre uno vencido o responde cuánto falta para el siguiente QR.
+      if (!cobroId) {
         const abierto = await llamar<{ cobro_id: string }>("abrir-cobro", sesion.token, {
           operacion_id: opAbrir.current,
           pedido_id: pedidoId,
@@ -95,13 +95,13 @@ export default function EstadoCobro() {
         cobroId = abierto.cobro_id;
       }
       if (!cobroId) throw new ErrorDeApi("No se pudo abrir el cobro.");
-      const data = await llamar<{ qr_imagen?: string }>("crear-intento-pago", sesion.token, {
+      const data = await llamar<{ qr_imagen?: string; intento_id?: string }>("crear-intento-pago", sesion.token, {
         operacion_id: opIntento.current,
         cobro_id: cobroId,
         metodo: "qr",
       });
       opIntento.current = crypto.randomUUID();
-      if (data.qr_imagen) guardarQr(pedidoId, srcQr(data.qr_imagen));
+      if (data.qr_imagen) guardarQr(pedidoId, srcQr(data.qr_imagen), data.intento_id ?? null);
       navegar(`/repartidor/cobrar/${pedidoId}`);
     } catch (fallo) {
       if (fallo instanceof ErrorDeApi && (fallo.codigo === "INTENTO_VIGENTE" || fallo.segundosRestantes)) {

@@ -20,7 +20,7 @@ export default function Cobrar() {
   const opAviso = useRef(crypto.randomUUID());
   const opDevolver = useRef(crypto.randomUUID());
   const [estado, setEstado] = useState<EstadoPedido | null>(null);
-  const [imagen, setImagen] = useState<string | null>(() => leerQr(pedidoId));
+  const [local, setLocal] = useState<{ intentoId: string | null; src: string } | null>(null);
   const [segundos, setSegundos] = useState(0);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState(false);
@@ -77,7 +77,7 @@ export default function Cobrar() {
     setOcupado(true);
     setErrorModal("");
     try {
-      const data = await llamar<{ ya_enviado?: boolean; qr_imagen?: string }>("crear-intento-pago", sesion.token, {
+      const data = await llamar<{ ya_enviado?: boolean; qr_imagen?: string; intento_id?: string }>("crear-intento-pago", sesion.token, {
         operacion_id: opAviso.current,
         cobro_id: estado.cobro.id,
         metodo: "push",
@@ -86,8 +86,8 @@ export default function Cobrar() {
       opAviso.current = crypto.randomUUID();
       if (data.qr_imagen) {
         const src = srcQr(data.qr_imagen);
-        guardarQr(pedidoId, src);
-        setImagen(src);
+        guardarQr(pedidoId, src, data.intento_id ?? null);
+        setLocal({ intentoId: data.intento_id ?? null, src });
       }
       setCelular("");
       setAviso(false);
@@ -125,6 +125,11 @@ export default function Cobrar() {
   const pedido = estado?.pedido;
   const intento = Math.max(1, estado?.intentos_desde_apertura || 1);
   const poco = segundos <= 60;
+  // Solo se muestra el QR del intento vivo. Un QR de otro intento o ya vencido nunca se dibuja.
+  const intentoVivo = estado?.intento && estado.intento.estado === "creado" && segundos > 0 ? estado.intento.id : null;
+  const imagen = intentoVivo
+    ? (local && local.intentoId === intentoVivo ? local.src : leerQr(pedidoId, intentoVivo))
+    : null;
 
   return (
     <CascaronRepartidor titulo="Cobrar" atras="/repartidor">
@@ -135,7 +140,7 @@ export default function Cobrar() {
           <div className="muted">Remisión {pedido?.folio_documento ?? pedido?.folio ?? "…"} · {pedido?.cliente_alias}</div>
           <div className="monto" style={{ fontSize: 48 }}>{pedido ? pesos(estado?.cobro?.importe ?? pedido.total) : "…"}</div>
         </div>
-        <Qr src={imagen} />
+        <Qr key={intentoVivo ?? "sin-intento"} src={imagen} cargando={!estado} />
         <p className="muted" style={{ textAlign: "center" }}>Pida al cliente que escanee el código con la app de su banco.</p>
         <div className={`cuenta${poco ? " poco" : ""}`} aria-live="off">{segundosEnReloj(segundos)}</div>
         <div className={`barra${poco ? " poco" : ""}`} style={{ margin: "6px 0 var(--e3)" }}>
