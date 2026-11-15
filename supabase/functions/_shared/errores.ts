@@ -39,6 +39,13 @@ const MENSAJES: Record<string, string> = {
   NOMBRE_INVALIDO: "Escriba un nombre para la ruta.",
   FECHA_INVALIDA: "La fecha de la ruta no es válida.",
   ORDEN_INVALIDA: "El orden de las paradas no es válido.",
+  ORDEN_INVALIDO: "El orden de las paradas no es válido.",
+  MOTIVO_OBLIGATORIO: "Escriba un motivo de al menos 5 caracteres.",
+  SIN_PARADAS_MOVIBLES: "No hay paradas que se puedan reordenar.",
+  SIN_CAMBIOS: "El orden es el mismo; no hay nada que cambiar.",
+  RUTA_YA_CERRADA: "La ruta ya estaba cerrada.",
+  ORDEN_COMPRA_INVALIDA: "La orden de compra no puede pasar de 40 caracteres.",
+  ENTREGA_SIN_REVISION_PENDIENTE: "Esta entrega no tiene una revisión pendiente.",
   EVIDENCIA_NO_ENCONTRADA: "No encontramos el archivo de evidencia.",
   EVIDENCIA_INVALIDA: "El archivo de evidencia no es válido.",
 };

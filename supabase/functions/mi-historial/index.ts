@@ -25,7 +25,7 @@ servir(async (req) => {
 
   const { data: pedidos, error } = await cliente
     .from("pedidos")
-    .select("id, folio, cliente_alias, total, estado, actualizado_en, tipo_documento, folio_documento, orden_compra_ref, zona")
+    .select("id, folio, cliente_alias, total, estado, actualizado_en, tipo_documento, folio_documento, orden_compra_ref")
     .eq("repartidor_id", perfil.user_id)
     .in("estado", ["entregado", "devuelto", "cancelado"])
     .gte("actualizado_en", desde)
@@ -51,7 +51,7 @@ servir(async (req) => {
       id: p.id,
       folio: p.folio,
       cliente: p.cliente_alias,
-      zona: p.zona,
+      zona: null,
       total: p.total,
       estado: p.estado,
       actualizado_en: p.actualizado_en,

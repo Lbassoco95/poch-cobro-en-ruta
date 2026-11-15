@@ -9,7 +9,7 @@ servir(async (req) => {
   const pedidoBase = await asegurarPedido(cliente, datos.pedido_id, perfil);
   const { data: pedido, error } = await cliente
     .from("pedidos")
-    .select("id, folio, cliente_alias, total, estado, creado_en, actualizado_en, tipo_documento, folio_documento, orden_compra_ref, zona, parada, ruta_id")
+    .select("id, folio, cliente_alias, total, estado, creado_en, actualizado_en, tipo_documento, folio_documento, orden_compra_ref, parada, ruta_id")
     .eq("id", pedidoBase.id)
     .single();
   if (error) throw new Error(error.message);
@@ -27,7 +27,7 @@ servir(async (req) => {
 
   const { data: cobro, error: errorCobro } = await cliente
     .from("cobros")
-    .select("id, importe, concepto, estado, vigencia_hasta, pagado_en, comprobante_clave, abierto_en")
+    .select("id, importe, concepto, estado, vigencia_hasta, pagado_en, comprobante_clave, creado_en, reabierto_en")
     .eq("pedido_id", pedido.id)
     .maybeSingle();
   if (errorCobro) throw new Error(errorCobro.message);
@@ -44,7 +44,7 @@ servir(async (req) => {
 
   let intentos_desde_apertura = 0;
   if (cobro) {
-    const desde = cobro.abierto_en ?? cobro.vigencia_hasta;
+    const desde = cobro.reabierto_en ?? cobro.creado_en;
     const { count } = await cliente
       .from("intentos_pago")
       .select("id", { count: "exact", head: true })

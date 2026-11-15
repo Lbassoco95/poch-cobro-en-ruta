@@ -58,7 +58,7 @@ export const esquemaTablero = z.object({
 export const esquemaCrearRuta = z.object({
   operacion_id: uuid,
   repartidor_id: uuid,
-  nombre: z.string().trim().min(1).max(80),
+  nombre: z.string().trim().min(1).max(60),
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 

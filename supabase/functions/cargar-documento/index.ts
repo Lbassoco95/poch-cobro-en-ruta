@@ -16,7 +16,7 @@ servir(async (req) => {
     p_lineas: datos.lineas,
     p_actor: perfil.user_id,
     p_orden_compra: datos.orden_compra ?? null,
-    p_zona: datos.zona ?? null,
+    // La base de producción no tiene columna ni parámetro de zona: no se envía.
   });
   return json(200, resultado);
 });

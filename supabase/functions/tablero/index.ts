@@ -18,11 +18,11 @@ async function resumen(cliente: Cliente, estado?: string, repartidorId?: string)
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
   const [repartidores, pedidos, cobros, pagos, rutas, evidencias, reordenes] = await Promise.all([
     cliente.from("perfiles").select("user_id, nombre").eq("rol", "repartidor").eq("activo", true).order("nombre"),
-    cliente.from("pedidos").select("id, folio, cliente_alias, total, estado, creado_en, repartidor_id, ruta_id, tipo_documento, folio_documento, orden_compra_ref, zona, parada").order("creado_en", { ascending: false }).limit(300),
+    cliente.from("pedidos").select("id, folio, cliente_alias, total, estado, creado_en, repartidor_id, ruta_id, tipo_documento, folio_documento, orden_compra_ref, parada").order("creado_en", { ascending: false }).limit(300),
     cliente.from("cobros").select("id, pedido_id, importe, estado, actualizado_en, pagado_en"),
     cliente.from("pagos_confirmados").select("id, cobro_id, monto, resultado, resolucion, fuente, pagado_en, recibido_en, pagador_banco, pagador_tipo_cuenta, pagador_clabe_ultimos4, clave_rastreo, nota_resolucion"),
     cliente.from("rutas").select("id, nombre, fecha, estado, repartidor_id, creado_en").eq("fecha", hoy).order("creado_en", { ascending: false }),
-    cliente.from("entregas_evidencia").select("pedido_id, recibe_nombre, requiere_revision, revisada, entregado_en, foto_ruta, firma_ruta").eq("requiere_revision", true).eq("revisada", false),
+    cliente.from("entregas_evidencia").select("pedido_id, recibe_nombre, requiere_revision, revisada_en, capturada_en, foto_ruta, firma_ruta").eq("requiere_revision", true).is("revisada_en", null),
     cliente.from("bitacora").select("id, ocurrio_en, actor, accion, detalle").eq("accion", "ruta_reordenada").gte("ocurrio_en", desde).order("id", { ascending: false }).limit(20),
   ]);
   for (const consulta of [repartidores, pedidos, cobros, pagos, rutas, evidencias, reordenes]) {
@@ -79,6 +79,8 @@ async function resumen(cliente: Cliente, estado?: string, repartidorId?: string)
     const pedido = (pedidos.data ?? []).find((p) => p.id === ev.pedido_id);
     return {
       ...ev,
+      revisada: false,
+      entregado_en: ev.capturada_en,
       folio: pedido?.folio ?? null,
       cliente: pedido?.cliente_alias ?? null,
       repartidor: pedido ? nombres.get(pedido.repartidor_id) ?? "Repartidor" : null,
@@ -95,7 +97,7 @@ async function resumen(cliente: Cliente, estado?: string, repartidorId?: string)
         id: p.id,
         parada: p.parada,
         cliente: p.cliente_alias,
-        zona: p.zona,
+        zona: null,
         estado: p.estado,
         total: p.total,
         tipo: p.tipo_documento,
@@ -127,7 +129,7 @@ async function resumen(cliente: Cliente, estado?: string, repartidorId?: string)
 async function detalle(cliente: Cliente, pedidoId: string) {
   const { data: pedido, error } = await cliente
     .from("pedidos")
-    .select("id, folio, cliente_alias, total, estado, creado_en, actualizado_en, repartidor_id, ruta_id, tipo_documento, folio_documento, orden_compra_ref, zona, parada")
+    .select("id, folio, cliente_alias, total, estado, creado_en, actualizado_en, repartidor_id, ruta_id, tipo_documento, folio_documento, orden_compra_ref, parada")
     .eq("id", pedidoId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -138,7 +140,7 @@ async function detalle(cliente: Cliente, pedidoId: string) {
     cliente.from("productos").select("id, sku, nombre"),
     cliente.from("cobros").select("id, importe, concepto, estado, vigencia_hasta, pagado_en, comprobante_clave").eq("pedido_id", pedido.id).maybeSingle(),
     cliente.from("bitacora").select("id, ocurrio_en, actor, accion, detalle").eq("pedido_id", pedido.id).order("id"),
-    cliente.from("entregas_evidencia").select("recibe_nombre, foto_ruta, firma_ruta, excepcion, nota, requiere_revision, revisada, entregado_en").eq("pedido_id", pedido.id).maybeSingle(),
+    cliente.from("entregas_evidencia").select("recibe_nombre, foto_ruta, firma_ruta, excepcion, nota, requiere_revision, revisada_en, capturada_en").eq("pedido_id", pedido.id).maybeSingle(),
   ]);
   for (const consulta of [perfil, lineas, productos, cobro, bitacora, evidencia]) {
     if (consulta.error) throw new Error(consulta.error.message);
@@ -166,8 +168,8 @@ async function detalle(cliente: Cliente, pedidoId: string) {
         excepcion: evidencia.data.excepcion,
         nota: evidencia.data.nota,
         requiere_revision: evidencia.data.requiere_revision,
-        revisada: evidencia.data.revisada,
-        entregado_en: evidencia.data.entregado_en,
+        revisada: evidencia.data.revisada_en !== null,
+        entregado_en: evidencia.data.capturada_en,
       }
       : null,
     bitacora: (bitacora.data ?? []).map((fila) => ({ ...fila, detalle: limpiar(fila.detalle) })),

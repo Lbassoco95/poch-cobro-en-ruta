@@ -48,7 +48,7 @@ servir(async (req) => {
       .maybeSingle(),
     cliente
       .from("entregas_evidencia")
-      .select("recibe_nombre, entregado_en")
+      .select("recibe_nombre, capturada_en")
       .eq("pedido_id", cobro.pedido_id)
       .maybeSingle(),
   ]);
@@ -78,7 +78,7 @@ servir(async (req) => {
     })),
     entrega: entrega
       ? {
-        fecha: entrega.entregado_en,
+        fecha: entrega.capturada_en,
         recibe: entrega.recibe_nombre,
         leyenda: "Entrega registrada con evidencia",
       }

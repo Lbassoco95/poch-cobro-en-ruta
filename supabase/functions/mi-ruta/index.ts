@@ -21,7 +21,7 @@ servir(async (req) => {
 
   const { data: paradas, error: errorParadas } = await cliente
     .from("pedidos")
-    .select("id, folio, cliente_alias, total, estado, parada, tipo_documento, folio_documento, orden_compra_ref, zona")
+    .select("id, folio, cliente_alias, total, estado, parada, tipo_documento, folio_documento, orden_compra_ref")
     .eq("ruta_id", ruta.id)
     .order("parada", { ascending: true });
   if (errorParadas) throw new Error(errorParadas.message);
