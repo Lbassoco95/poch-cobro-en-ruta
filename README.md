@@ -15,7 +15,7 @@ En refaccionarias con venta en ruta, el repartidor cobra en efectivo o pide una 
 El aspecto sale de `docs/diseno/poch-ruta.html`: fondo oscuro, vidrio y fondo vivo. De 640 px hacia abajo el repartidor usa la pantalla completa. Hacia arriba se ve dentro de un marco de teléfono. Administración usa todo el ancho.
 
 - Repartidor: ingreso, mi ruta, remisión, cobro con QR, estado, entrega con foto y firma, cambio de orden e historial.
-- Administración: tablero, rutas, pagos por resolver, bitácora e integridad, y guía de estilo (`/estilo`).
+- Administración: tablero, rutas, pagos por resolver, y bitácora e integridad. La guía de estilo queda en el código y solo se abre en desarrollo local (`/estilo`). No forma parte del sitio publicado.
 - El cliente abre el comprobante en `/c/:clave`, sin iniciar sesión.
 
 La ruta no tiene zona: producción no guarda ese dato. Al cerrar una ruta, la pantalla muestra entregados, devueltos y cobrado. El aviso de cambio de orden lee los folios que guarda la bitácora.
@@ -1461,7 +1461,7 @@ npm install
 npm run dev
 ```
 
-Sin las variables `VITE_*` la pantalla de ingreso lo indica. El comprobante público del cliente vive en `/c/:clave`. La guía de estilo, sin sesión, vive en `/estilo`.
+Sin las variables `VITE_*` la pantalla de ingreso lo indica. El comprobante público del cliente vive en `/c/:clave`. Con `npm run dev` la guía de estilo se abre en `/estilo`; el sitio publicado no la incluye.
 
 ## Siguiente fase (fuera de esta corrida)
 

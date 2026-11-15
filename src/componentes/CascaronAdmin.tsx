@@ -6,19 +6,22 @@ import { leerAvisosVistos } from "../lib/reorden";
 import type { Tablero } from "../lib/tipos";
 import { Pie } from "./Pie";
 
-const ENLACES = [
+const ENLACES_BASE = [
   ["tablero", "/admin", "Tablero"],
   ["rutas", "/admin/rutas", "Rutas"],
   ["pagos", "/admin/pagos", "Pagos por resolver"],
   ["bitacora", "/admin/bitacora", "Bitácora"],
-  ["estilo", "/admin/estilo", "Guía de estilo"],
 ] as const;
+
+const ENLACES = import.meta.env.DEV
+  ? [...ENLACES_BASE, ["estilo", "/admin/estilo", "Guía de estilo"] as const]
+  : ENLACES_BASE;
 
 export function CascaronAdmin({
   actual,
   children,
 }: {
-  actual: (typeof ENLACES)[number][0];
+  actual: (typeof ENLACES_BASE)[number][0] | "estilo";
   children: ReactNode;
 }) {
   const { sesion, salir } = useSesion();
@@ -52,7 +55,7 @@ export function CascaronAdmin({
     };
   }, [sesion]);
 
-  function cuenta(clave: (typeof ENLACES)[number][0]): number {
+  function cuenta(clave: (typeof ENLACES)[number][0] | "estilo"): number {
     if (clave === "tablero") return avisos;
     if (clave === "pagos") return pagos;
     return 0;

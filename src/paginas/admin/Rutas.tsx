@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Aviso } from "../../componentes/Aviso";
 import { AvisosReorden } from "../../componentes/AvisosReorden";
 import { Boton } from "../../componentes/Boton";
+import { Lista } from "../../componentes/Lista";
 import { CascaronAdmin } from "../../componentes/CascaronAdmin";
 import { Insignia } from "../../componentes/Insignia";
 import { useSesion } from "../../contexto/Sesion";
@@ -152,11 +153,13 @@ export default function RutasAdmin() {
       <h2 className="margen-top-lg">Crear ruta</h2>
       <div className="dos">
         <label htmlFor="rep-ruta">Repartidor
-          <select id="rep-ruta" value={repartidorId} onChange={(evento) => setRepartidorId(evento.target.value)}>
-            {(datos?.repartidores ?? []).map((rep) => (
-              <option key={rep.repartidor_id} value={rep.repartidor_id}>{rep.nombre}</option>
-            ))}
-          </select>
+          <Lista
+            id="rep-ruta"
+            valor={repartidorId}
+            alCambiar={setRepartidorId}
+            opciones={(datos?.repartidores ?? []).map((rep) => ({ valor: rep.repartidor_id, texto: rep.nombre }))}
+            placeholder="Elija un repartidor"
+          />
         </label>
         <label htmlFor="nombre-ruta">Nombre
           <input id="nombre-ruta" value={nombreRuta} onChange={(evento) => setNombreRuta(evento.target.value)} />
@@ -168,12 +171,18 @@ export default function RutasAdmin() {
 
       <h2 className="margen-top-lg">Cargar remisión en una ruta abierta</h2>
       <label htmlFor="ruta-doc">Ruta
-        <select id="ruta-doc" value={rutaId} onChange={(evento) => setRutaId(evento.target.value)}>
-          <option value="">Elija una ruta</option>
-          {(datos?.rutas ?? []).filter((ruta) => ruta.estado === "abierta").map((ruta) => (
-            <option key={ruta.id} value={ruta.id}>{ruta.nombre} · {ruta.repartidor}</option>
-          ))}
-        </select>
+        <Lista
+          id="ruta-doc"
+          valor={rutaId}
+          alCambiar={setRutaId}
+          placeholder="Elija una ruta"
+          opciones={[
+            { valor: "", texto: "Elija una ruta" },
+            ...(datos?.rutas ?? [])
+              .filter((ruta) => ruta.estado === "abierta")
+              .map((ruta) => ({ valor: ruta.id, texto: `${ruta.nombre} · ${ruta.repartidor}` })),
+          ]}
+        />
       </label>
       <div className="dos margen-top">
         <label htmlFor="folio-doc">Folio de la remisión
@@ -187,11 +196,18 @@ export default function RutasAdmin() {
         </label>
       </div>
       <div className="acciones margen-top">
-        <select aria-label="Pieza" value={productoId} onChange={(evento) => setProductoId(evento.target.value)} style={{ maxWidth: 280 }}>
-          {catalogo.map((producto) => (
-            <option key={producto.id} value={producto.id}>{producto.nombre} · {pesos(producto.precio)}</option>
-          ))}
-        </select>
+        <div style={{ flex: "1 1 220px", maxWidth: 320 }}>
+          <Lista
+            etiqueta="Pieza"
+            valor={productoId}
+            alCambiar={setProductoId}
+            placeholder="Elija una pieza"
+            opciones={catalogo.map((producto) => ({
+              valor: producto.id,
+              texto: `${producto.nombre} · ${pesos(producto.precio)}`,
+            }))}
+          />
+        </div>
         <input aria-label="Cantidad" type="number" min={1} value={cantidad} onChange={(evento) => setCantidad(Number(evento.target.value))} style={{ maxWidth: 100 }} />
         <Boton chico variante="secundario" onClick={agregarLinea}>Agregar</Boton>
       </div>

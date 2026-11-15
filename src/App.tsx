@@ -1,8 +1,8 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { FondoVivo } from "./componentes/FondoVivo";
 import { SesionProvider, useSesion } from "./contexto/Sesion";
 import Detalle from "./paginas/admin/Detalle";
-import Estilo from "./paginas/admin/Estilo";
 import Integridad from "./paginas/admin/Integridad";
 import Pagos from "./paginas/admin/Pagos";
 import RutasAdmin from "./paginas/admin/Rutas";
@@ -16,6 +16,8 @@ import Historial from "./paginas/repartidor/Historial";
 import MiRuta from "./paginas/repartidor/MiRuta";
 import Orden from "./paginas/repartidor/Orden";
 import Remision from "./paginas/repartidor/Remision";
+
+const Estilo = import.meta.env.DEV ? lazy(() => import("./paginas/admin/Estilo")) : null;
 
 function RutaPrivada({ rol }: { rol: "repartidor" | "admin" }) {
   const { cargando, sesion } = useSesion();
@@ -39,7 +41,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Ingreso />} />
           <Route path="/c/:clave" element={<ComprobanteCliente />} />
-          <Route path="/estilo" element={<Estilo publico />} />
+          {Estilo ? (
+            <Route path="/estilo" element={<Suspense fallback={null}><Estilo publico /></Suspense>} />
+          ) : null}
           <Route element={<RutaPrivada rol="repartidor" />}>
             <Route path="/repartidor" element={<MiRuta />} />
             <Route path="/repartidor/historial" element={<Historial />} />
@@ -55,7 +59,9 @@ export default function App() {
             <Route path="/admin/remisiones" element={<Navigate to="/admin/rutas" replace />} />
             <Route path="/admin/pagos" element={<Pagos />} />
             <Route path="/admin/bitacora" element={<Integridad />} />
-            <Route path="/admin/estilo" element={<Estilo />} />
+            {Estilo ? (
+              <Route path="/admin/estilo" element={<Suspense fallback={null}><Estilo /></Suspense>} />
+            ) : null}
             <Route path="/admin/pedido/:pedidoId" element={<Detalle />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
