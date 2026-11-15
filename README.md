@@ -1439,18 +1439,18 @@ select public.reg_bitacora('sembrado', 'datos_demo_cargados', null, null, null, 
 
 Después de los bloques 2d y 3, `supabase/sql/datos-demo-ruta.sql` crea la «Ruta Demo Centro» de hoy para Repartidor Uno, con tres documentos inventados. Se puede correr una sola vez por día.
 
-Después, `supabase/sql/datos-demo-ruta-2.sql` agrega tres paradas más (4 a 6) a esa misma ruta, sin tocar las tres primeras, y tampoco repite si ya están cargadas.
+Después, `supabase/sql/datos-demo-ruta-2.sql` crea una **segunda ruta**, «Ruta Demo Jueces», de Repartidor Uno, con tres documentos más. No toca la «Ruta Demo Centro» y no choca si ya existe: reutiliza la ruta y omite los folios que ya estén cargados. El repartidor ve **las dos rutas abiertas** en «Mi ruta», cada una con su resumen.
 
-**Los seis folios de demostración** (todos inventados, en centavos):
+**Los seis folios de demostración** (todos inventados, en centavos; los totales son los del script del repositorio):
 
-| Parada | Documento | Folio | Cliente | Total |
-| --- | --- | --- | --- | --- |
-| 1 | Remisión | `DEMO-R-001` | Refaccionaria El Tornillo | $0.11 |
-| 2 | Nota de venta | `DEMO-N-014` | Moto Servicio Los Pinos | $0.08 |
-| 3 | Orden de compra | `DEMO-OC-0230` | Taller Hermanos Mena | $0.10 |
-| 4 | Remisión | `DEMO-R-002` | Mecánica Rápida del Norte | $0.08 |
-| 5 | Nota de venta | `DEMO-N-015` | Taller Moto Express | $0.06 |
-| 6 | Orden de compra | `DEMO-OC-0231` | Refaccionaria La Palma | $0.09 |
+| Ruta | Parada | Documento | Folio | Cliente | Total |
+| --- | --- | --- | --- | --- | --- |
+| Ruta Demo Centro | 1 | Remisión | `DEMO-R-001` | Refaccionaria El Tornillo | $0.11 |
+| Ruta Demo Centro | 2 | Nota de venta | `DEMO-N-014` | Moto Servicio Los Pinos | $0.08 |
+| Ruta Demo Centro | 3 | Orden de compra | `DEMO-OC-0230` | Taller Hermanos Mena | $0.10 |
+| Ruta Demo Jueces | 1 | Remisión | `DEMO-R-002` | Mecánica Rápida del Norte | $0.08 |
+| Ruta Demo Jueces | 2 | Nota de venta | `DEMO-N-015` | Taller Moto Express | $0.06 |
+| Ruta Demo Jueces | 3 | Orden de compra | `DEMO-OC-0231` | Refaccionaria La Palma | $0.09 |
 
 ## Cómo correr las pruebas
 
