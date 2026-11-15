@@ -1,61 +1,40 @@
--- COMPLEMENTO · Orden de compra en el documento y reorden de paradas
--- AVISO: Polo indicó que pegaría este archivo en el chat; no llegó. Se armó a partir del
--- complemento (columnas, firmas y reglas). Si tiene el SQL original, sustitúyalo tal cual.
+-- FASE 2b · El repartidor reordena sus paradas (con motivo y aviso a administración) y la remisión guarda su orden de compra de origen
 
 alter table public.pedidos
-  add column if not exists orden_compra_ref text,
-  add column if not exists zona text;
+  add column if not exists orden_compra_ref text
+  check (orden_compra_ref is null or char_length(orden_compra_ref) between 1 and 40);
 
-alter table public.pedidos drop constraint if exists pedidos_orden_compra_ref_check;
-alter table public.pedidos add constraint pedidos_orden_compra_ref_check
-  check (orden_compra_ref is null or char_length(trim(orden_compra_ref)) between 1 and 40);
-
-alter table public.pedidos drop constraint if exists pedidos_zona_check;
-alter table public.pedidos add constraint pedidos_zona_check
-  check (zona is null or char_length(trim(zona)) between 1 and 60);
-
--- Sustituye cargar_documento para aceptar orden de compra y zona
+-- cargar_documento ahora acepta la orden de compra de origen (opcional, al final)
 drop function if exists public.cargar_documento(uuid, uuid, text, text, text, jsonb, text);
-
 create or replace function public.cargar_documento(
-  p_op uuid, p_ruta uuid, p_tipo text, p_folio text, p_cliente text,
-  p_lineas jsonb, p_actor text,
-  p_orden_compra text default null,
-  p_zona text default null)
+  p_op uuid, p_ruta uuid, p_tipo text, p_folio text, p_cliente text, p_lineas jsonb, p_actor text,
+  p_orden_compra text default null)
 returns jsonb language plpgsql set search_path = public, extensions as $$
 declare
-  v_rep jsonb; r public.rutas; v_ped uuid; v_folio bigint; v_parada int; v_total numeric(12,2) := 0;
-  l record; v_prod record; v_res jsonb; v_oc text; v_zona text;
+  v_rep jsonb; r public.rutas; v_ped uuid; v_folio bigint; v_total numeric(12,2) := 0;
+  l record; v_prod record; v_par int; v_res jsonb; v_fd text; v_oc text;
 begin
   v_rep := public.iniciar_operacion(p_op, 'cargar_documento', p_actor);
   if v_rep is not null then return v_rep; end if;
-
   select * into r from public.rutas where id = p_ruta for update;
   if not found then raise exception 'RUTA_NO_ENCONTRADA'; end if;
   if r.estado <> 'abierta' then raise exception 'RUTA_CERRADA'; end if;
   if p_tipo is null or p_tipo not in ('remision','nota_venta','orden_compra') then raise exception 'TIPO_INVALIDO'; end if;
-  if p_folio is null or char_length(trim(p_folio)) < 1 or char_length(trim(p_folio)) > 40 then raise exception 'FOLIO_INVALIDO'; end if;
-  if p_cliente is null or char_length(trim(p_cliente)) < 1 then raise exception 'CLIENTE_INVALIDO'; end if;
+  v_fd := trim(p_folio);
+  if v_fd is null or char_length(v_fd) not between 1 and 40 then raise exception 'FOLIO_INVALIDO'; end if;
+  if p_cliente is null or char_length(trim(p_cliente)) not between 1 and 60 then raise exception 'CLIENTE_INVALIDO'; end if;
+  v_oc := nullif(trim(coalesce(p_orden_compra, '')), '');
+  if v_oc is not null and char_length(v_oc) > 40 then raise exception 'ORDEN_COMPRA_INVALIDA'; end if;
+  if exists (select 1 from public.pedidos where tipo_documento = p_tipo and folio_documento = v_fd) then
+    raise exception 'DOCUMENTO_DUPLICADO';
+  end if;
   if p_lineas is null or jsonb_typeof(p_lineas) <> 'array' or jsonb_array_length(p_lineas) = 0 then
     raise exception 'DOCUMENTO_VACIO';
   end if;
-  if exists (
-    select 1 from public.pedidos
-    where ruta_id = p_ruta and tipo_documento = p_tipo and folio_documento = trim(p_folio)
-  ) then raise exception 'DOCUMENTO_DUPLICADO'; end if;
 
-  v_oc := case when p_orden_compra is null or trim(p_orden_compra) = '' then null else left(trim(p_orden_compra), 40) end;
-  v_zona := case when p_zona is null or trim(p_zona) = '' then null else left(trim(p_zona), 60) end;
-
-  select coalesce(max(parada), 0) + 1 into v_parada from public.pedidos where ruta_id = p_ruta;
-  perform pg_advisory_xact_lock(hashtext(r.repartidor_id::text));
-
-  insert into public.pedidos (
-    repartidor_id, cliente_alias, total, estado, ruta_id, tipo_documento, folio_documento,
-    parada, orden_compra_ref, zona)
-  values (
-    r.repartidor_id, left(trim(p_cliente), 60), 0.01, 'pendiente', p_ruta, p_tipo, trim(p_folio),
-    v_parada, v_oc, v_zona)
+  select coalesce(max(parada), 0) + 1 into v_par from public.pedidos where ruta_id = p_ruta;
+  insert into public.pedidos (repartidor_id, cliente_alias, total, estado, ruta_id, tipo_documento, folio_documento, parada, orden_compra_ref)
+  values (r.repartidor_id, left(trim(p_cliente), 60), 0.01, 'pendiente', p_ruta, p_tipo, v_fd, v_par, v_oc)
   returning id, folio into v_ped, v_folio;
 
   for l in select (x->>'producto_id')::uuid as producto_id, (x->>'cantidad')::int as cantidad
@@ -74,77 +53,55 @@ begin
 
   update public.pedidos set total = v_total where id = v_ped;
   perform public.reg_bitacora(p_actor, 'documento_cargado', v_ped, null, p_op,
-    jsonb_build_object('ruta_id', p_ruta, 'tipo', p_tipo, 'folio_documento', trim(p_folio),
-                       'orden_compra', v_oc, 'zona', v_zona, 'parada', v_parada, 'total', v_total));
-  v_res := jsonb_build_object(
-    'pedido_id', v_ped, 'folio', v_folio, 'parada', v_parada, 'tipo', p_tipo,
-    'folio_documento', trim(p_folio), 'orden_compra', v_oc, 'total', v_total);
+    jsonb_build_object('ruta_id', p_ruta, 'tipo', p_tipo, 'folio_documento', v_fd, 'parada', v_par,
+                       'total', v_total, 'lineas', jsonb_array_length(p_lineas), 'orden_compra', v_oc));
+  v_res := jsonb_build_object('pedido_id', v_ped, 'folio', v_folio, 'parada', v_par,
+                              'tipo', p_tipo, 'folio_documento', v_fd, 'total', v_total, 'orden_compra', v_oc);
   update public.operaciones set resultado = v_res where operacion_id = p_op;
   return v_res;
 end $$;
 
--- Reordenar paradas pendientes o por cobrar del repartidor dueño
+-- Reordenar paradas: solo las que siguen pendientes o por cobrar; las ya pagadas, entregadas o devueltas conservan su lugar
 create or replace function public.reordenar_paradas(
   p_op uuid, p_ruta uuid, p_repartidor uuid, p_orden uuid[], p_motivo text)
 returns jsonb language plpgsql set search_path = public, extensions as $$
 declare
-  v_rep jsonb; r public.rutas; v_antes uuid[]; v_despues uuid[]; v_id uuid; v_i int := 0; v_res jsonb;
-  v_movibles int; v_en_orden int;
+  v_rep jsonb; r public.rutas; v_mov uuid[]; v_slots int[]; v_antes jsonb; v_despues jsonb; v_res jsonb;
 begin
   v_rep := public.iniciar_operacion(p_op, 'reordenar_paradas', p_repartidor::text);
   if v_rep is not null then return v_rep; end if;
-  if p_motivo is null or char_length(trim(p_motivo)) < 5 then raise exception 'NOTA_OBLIGATORIA'; end if;
-  if p_orden is null or coalesce(array_length(p_orden, 1), 0) = 0 then raise exception 'ORDEN_INVALIDA'; end if;
-
   select * into r from public.rutas where id = p_ruta for update;
-  if not found then raise exception 'RUTA_NO_ENCONTRADA'; end if;
+  if not found or r.repartidor_id <> p_repartidor then raise exception 'RUTA_NO_ENCONTRADA'; end if;
   if r.estado <> 'abierta' then raise exception 'RUTA_CERRADA'; end if;
-  if r.repartidor_id <> p_repartidor then raise exception 'RUTA_AJENA'; end if;
+  if p_motivo is null or char_length(trim(p_motivo)) < 5 then raise exception 'MOTIVO_OBLIGATORIO'; end if;
 
-  select coalesce(array_agg(id order by parada), '{}') into v_antes
-  from public.pedidos
-  where ruta_id = p_ruta and estado in ('pendiente','por_cobrar');
-
-  select count(*) into v_movibles
+  select array_agg(id order by parada), array_agg(parada order by parada)
+    into v_mov, v_slots
   from public.pedidos where ruta_id = p_ruta and estado in ('pendiente','por_cobrar');
-  if coalesce(array_length(p_orden, 1), 0) <> v_movibles then raise exception 'ORDEN_INVALIDA'; end if;
+  if v_mov is null then raise exception 'SIN_PARADAS_MOVIBLES'; end if;
+  if p_orden is null or cardinality(p_orden) <> cardinality(v_mov)
+     or (select count(distinct x) from unnest(p_orden) x) <> cardinality(v_mov)
+     or exists (select 1 from unnest(p_orden) x where x <> all (v_mov)) then
+    raise exception 'ORDEN_INVALIDO';
+  end if;
+  if p_orden = v_mov then raise exception 'SIN_CAMBIOS'; end if;
 
-  select count(*) into v_en_orden
-  from public.pedidos
-  where ruta_id = p_ruta and estado in ('pendiente','por_cobrar') and id = any(p_orden);
-  if v_en_orden <> v_movibles then raise exception 'ORDEN_INVALIDA'; end if;
-  if (select count(distinct x) from unnest(p_orden) x) <> v_movibles then raise exception 'ORDEN_INVALIDA'; end if;
+  select jsonb_agg(p.folio_documento order by p.parada) into v_antes
+    from public.pedidos p where p.id = any (v_mov);
 
-  -- Hueco temporal para no chocar con único (ruta, parada) si existiera
-  update public.pedidos set parada = parada + 1000
-  where ruta_id = p_ruta and estado in ('pendiente','por_cobrar');
+  update public.pedidos p set parada = v_slots[o.n], actualizado_en = now()
+  from unnest(p_orden) with ordinality as o(id, n)
+  where p.id = o.id;
 
-  foreach v_id in array p_orden loop
-    v_i := v_i + 1;
-    update public.pedidos set parada = v_i, actualizado_en = now() where id = v_id and ruta_id = p_ruta;
-  end loop;
-
-  select coalesce(array_agg(id order by parada), '{}') into v_despues
-  from public.pedidos
-  where ruta_id = p_ruta and estado in ('pendiente','por_cobrar');
+  select jsonb_agg(p.folio_documento order by p.parada) into v_despues
+    from public.pedidos p where p.id = any (v_mov);
 
   perform public.reg_bitacora(p_repartidor::text, 'ruta_reordenada', null, null, p_op,
-    jsonb_build_object(
-      'ruta_id', p_ruta,
-      'antes', to_jsonb(v_antes),
-      'despues', to_jsonb(v_despues),
-      'motivo', left(trim(p_motivo), 300)));
-
-  v_res := jsonb_build_object('ruta_id', p_ruta, 'orden', to_jsonb(v_despues));
+    jsonb_build_object('ruta_id', p_ruta, 'antes', v_antes, 'despues', v_despues, 'motivo', left(trim(p_motivo), 300)));
+  v_res := jsonb_build_object('ruta_id', p_ruta, 'antes', v_antes, 'despues', v_despues);
   update public.operaciones set resultado = v_res where operacion_id = p_op;
   return v_res;
 end $$;
 
-revoke execute on function public.cargar_documento(uuid, uuid, text, text, text, jsonb, text, text, text)
-  from public, anon, authenticated;
-revoke execute on function public.reordenar_paradas(uuid, uuid, uuid, uuid[], text)
-  from public, anon, authenticated;
-grant execute on function public.cargar_documento(uuid, uuid, text, text, text, jsonb, text, text, text)
-  to service_role;
-grant execute on function public.reordenar_paradas(uuid, uuid, uuid, uuid[], text)
-  to service_role;
+revoke execute on all functions in schema public from public, anon, authenticated;
+grant execute on all functions in schema public to service_role;
