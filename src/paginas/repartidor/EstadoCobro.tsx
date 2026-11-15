@@ -6,6 +6,7 @@ import { CascaronRepartidor } from "../../componentes/CascaronRepartidor";
 import { Insignia } from "../../componentes/Insignia";
 import { Modal } from "../../componentes/Modal";
 import { Pips } from "../../componentes/Pips";
+import { ReciboCliente } from "../../componentes/ReciboCliente";
 import { Vidrio } from "../../componentes/Vidrio";
 import { useSesion } from "../../contexto/Sesion";
 import { ErrorDeApi, llamar } from "../../lib/api";
@@ -215,6 +216,9 @@ export default function EstadoCobro() {
                 <Boton variante="entrega" onClick={() => navegar(`/repartidor/entrega/${pedidoId}`)}>📦 Marcar entrega</Boton>
                 <p className="muted" style={{ textAlign: "center" }}>Se pide foto de las piezas y firma de quien recibe.</p>
               </>
+            ) : null}
+            {vista === "pagado" || vista === "entregado" ? (
+              <ReciboCliente clave={estado.cobro?.comprobante_clave ?? estado.comprobante_clave} folio={estado.pedido.folio_documento ?? estado.pedido.folio} />
             ) : null}
             {vista === "vencido" && quedan > 0 ? (
               <>

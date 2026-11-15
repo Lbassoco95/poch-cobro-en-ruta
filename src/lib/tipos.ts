@@ -32,6 +32,7 @@ export type EstadoPedido = {
   segundos: number;
   intentos_desde_apertura: number;
   quedan_intentos: number;
+  comprobante_clave?: string | null;
   pago?: {
     monto: number;
     pagador_banco?: string | null;
